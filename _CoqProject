@@ -1,2 +1,3 @@
--Q src SymbComp
-src/FinSet.v
+FinSet.v
+
+-Q . SymbComp
