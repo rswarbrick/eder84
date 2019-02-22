@@ -1,5 +1,7 @@
-/CoqMakefile*
-/papers
+/Makefile
+/Makefile.conf
+/.coqdeps.d
 *.aux
 *.glob
 *.vo
+
