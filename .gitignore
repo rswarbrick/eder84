@@ -1,0 +1,5 @@
+/CoqMakefile*
+/papers
+*.aux
+*.glob
+*.vo
