@@ -3,6 +3,7 @@ Require Import Program.Basics.
 Require Import Logic.FinFun.
 Require Import Logic.Decidable.
 
+(* The disjoint sum of two finite sets is finite *)
 Lemma finite_sum {A B : Set}
       : Finite A -> Finite B -> Finite (A + B).
 Proof.
@@ -26,6 +27,7 @@ Proof.
     unfold Full in lb_full; apply lb_full.
 Qed.
 
+(* If A is finite and surjects onto B then B is finite. *)
 Lemma finite_surj {A B : Set} (f : A -> B)
   : Finite A -> Surjective f -> Finite B.
 Proof.
@@ -40,40 +42,85 @@ Proof.
   unfold Full in fullH. apply fullH.
 Qed.
 
-Fixpoint filter_option {A : Set} (lst : list (option A)) : list A :=
+(* We'd like to prove that if A injects into B and B is finite then A
+   is itself finite. This is slightly difficult, because we have to
+   construct the list.
+
+   First we define a way to construct this list of elements if we have
+   a decidability proof that says an element b is either in the image
+   of f or not. In fact, we ask for a pseudo-inverse, and then use a
+   Haskell-style cat_maybes function.
+
+ *)
+Fixpoint cat_maybes {A B : Set} (f : A -> option B) (lst : list A) : list B :=
   match lst with
   | nil => nil
-  | cons ma lst' => match ma with
-                    | Some a => a :: filter_option lst'
-                    | None => filter_option lst'
-                    end
+  | cons a lst' => match f a with
+                  | Some b => b :: cat_maybes f lst'
+                  | None => cat_maybes f lst'
+                  end
   end.
 
-Lemma full_filter_option (A : Set) (lst : list (option A))
-  : Full lst -> Full (filter_option lst).
+Lemma cat_maybes_inv (A B : Set) (f : A -> option B) (a : A) (lst : list A)
+  : cat_maybes f (a :: lst) = match f a with
+                              | Some b => b :: cat_maybes f lst
+                              | None => cat_maybes f lst
+                              end.
 Proof.
-  intro fullH.
+  unfold cat_maybes at 1.
+  fold (@cat_maybes A B).
+  apply eq_refl.
+Qed.
+
+(* full_inv deals with the case where I have maps f, inv such that inv
+   is a left-inverse for f, but mapping to option A so that we don't
+   need choice when we don't have a pre-image.
+
+   The first proposition is asking that inv really is a left inverse
+   for (f o Some). Then we say that if lst lists the elements of B, we
+   can create a full list of the elements of A by discarding the Nones
+   from the list you get by mapping inv over lst.
+ *)
+Lemma full_inv (A B : Set) (f : A -> B) (inv : B -> option A) (lst : list B)
+  : (forall a, inv (f a) = Some a) -> Full lst -> Full (cat_maybes inv lst).
+Proof.
+  intros invH fullH.
   unfold Full. intro a.
-  unfold Full in fullH; pose proof (fullH (Some a)) as aH; clear fullH.
+  unfold Full in fullH; pose proof (fullH (f a)) as in_fa_H; clear fullH.
   induction lst as [ | a0 lst IH ].
-  - unfold In in aH. contradiction aH.
-  - unfold In in aH; fold (@In (option A)) in aH.
-    destruct aH.
-    + rewrite H; clear H a0.
-      unfold filter_option. fold (@filter_option A).
-      unfold In. left. exact eq_refl.
-    + unfold filter_option. fold (@filter_option A).
-      destruct a0.
-      * unfold In. fold (@In A).
-        right. exact (IH H).
-      * exact (IH H).
+  - unfold In in in_fa_H. contradiction in_fa_H.
+  - (* in_fa_H is now In (f a) (a0 :: lst) *)
+    rewrite cat_maybes_inv.
+    apply in_inv in in_fa_H.
+    destruct in_fa_H as [ eqH | ].
+    + (* f a = a0 *)
+      rewrite eqH.
+      rewrite invH.
+      apply in_eq.
+    + (* In (f a) lst *)
+      apply IH in H; clear IH.
+      case (inv a0).
+      * intro aa. apply in_cons. exact H.
+      * exact H.
+Qed.
+
+Lemma finite_inj {A B : Set} (f : A -> B) (g : B -> option A)
+  : Finite B -> (forall a, g (f a) = Some a) -> Finite A.
+Proof.
+  intros finB invG.
+  unfold Finite in finB; destruct finB as [ bs fullB ].
+  unfold Finite.
+  exists (cat_maybes g bs).
+  apply (full_inv _ _ _ _ _ invG).
+  exact fullB.
 Qed.
 
 Lemma finite_option {A : Set}
   : Finite (option A) -> Finite A.
 Proof.
-  intro H.
-  unfold Finite in H; destruct H as [ lst fullH ].
-  unfold Finite. exists (filter_option lst).
-  apply full_filter_option. exact fullH.
+  intro finOp.
+  apply (finite_inj Some id finOp).
+  intro a.
+  unfold id.
+  exact eq_refl.
 Qed.
