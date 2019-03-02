@@ -1,126 +1,498 @@
+(**
+  This library is concerned with finiteness of a set under some
+  projection operation. The motivation is to deal with types that
+  contain some sort of propositional part. That is, you might have a
+  set that would be represented in normal maths as $A = \{ x \,|\, P\,
+  x \}$.
+
+  This set is represented by a Coq sigma types of the form [sig
+  P]. However finiteness of [sig P] isn't really very interesting: You
+  care about the number of the elements, x, but don't care about how
+  many proofs of P x there are.
+
+  We will work by talking about finiteness of the image of some
+  projection operation [p : A -> B]. Maybe [A] is a sigma type like
+  above and [p] is projection onto the first coordinate. We carefully
+  _don't_ construct the type that is the image of [p]: that would have
+  exactly the same problems as the original type (two apparently
+  identical elements are different because we don't have proof
+  irrelevance).
+
+ *)
+
 Require Import Lists.List.
 Require Import Program.Basics.
 Require Import Logic.FinFun.
 Require Import Logic.Decidable.
 
-(* The disjoint sum of two finite sets is finite *)
-Lemma finite_sum {A B : Set}
-      : Finite A -> Finite B -> Finite (A + B).
+Set Implicit Arguments.
+
+(**
+
+  * A projected notion of being in a list
+
+  Firstly, we define a "projected" version of [In]. The statement
+  [InProj p b lst] means that there is some [a] in [lst] such that [p
+  a = b].
+
+*)
+
+Section InProj.
+  Variables (A B : Type).
+  Variable (p : A -> B).
+
+  Fixpoint InProj (b : B) (l : list A) :=
+    match l with
+    | nil => False
+    | a :: m => p a = b \/ InProj b m
+    end.
+
+  Lemma in_proj_cons a b l : InProj b l -> InProj b (a :: l).
+  Proof.
+    unfold InProj at 2; fold InProj.
+    right. exact H.
+  Qed.
+
+  Lemma in_proj_eq a b l : p a = b -> InProj b (a :: l).
+  Proof.
+    intro H. unfold InProj. fold InProj. left. exact H.
+  Qed.
+
+  Lemma in_proj_nil b : ~ InProj b nil.
+  Proof.
+    unfold InProj. unfold not. intro H. apply H.
+  Qed.
+
+  Lemma in_proj_inv a b l : InProj b (a :: l) -> p a = b \/ InProj b l.
+  Proof.
+    unfold InProj at 1; fold InProj.
+    intro H; exact H.
+  Qed.
+
+  Lemma in_proj_or_app (l m : list A) (b : B)
+    : InProj b l \/ InProj b m -> InProj b (l ++ m).
+  Proof.
+    induction l as [ | a l IH ] .
+    - rewrite app_nil_l.
+      intro orH.
+      destruct orH.
+      + apply in_proj_nil in H. contradiction H.
+      + exact H.
+    - intro orH.
+      rewrite <- app_comm_cons.
+      destruct orH.
+      + unfold InProj in H; fold InProj in H.
+        destruct H.
+        * apply in_proj_eq. exact H.
+        * apply in_proj_cons. apply IH. left. exact H.
+      + apply in_proj_cons. apply IH. right. exact H.
+  Qed.
+End InProj.
+
+(** As you might expect, [InProj] generalises the standard library's
+   [In]. This lemma shows that [In] is a degenerate case of InProj,
+   where [A=B] and the "projection" is the identity. *)
+Lemma in_proj_in (A : Type) (a : A) l : In a l <-> InProj id a l.
 Proof.
-  (* Expand finiteness of A, B to get the lists *)
-  intros FA FB.
-  unfold Finite in FA; destruct FA as [ la la_full ].
-  unfold Finite in FB; destruct FB as [ lb lb_full ].
-  (* Expand finiteness of A+B and then full to get an elt of A+B to hit *)
-  unfold Finite.
-  exists ((map inl la) ++ (map inr lb)).
-  unfold Full. intro ab.
-  (* Proceed by case analysis: is ab in A or B? *)
-  destruct ab as [ a | b ].
-  - clear lb_full.
-    apply in_or_app; left.
-    apply in_map.
-    unfold Full in la_full; apply la_full.
-  - clear la_full.
-    apply in_or_app; right.
-    apply in_map.
-    unfold Full in lb_full; apply lb_full.
-Qed.
+  constructor.
+  - intro inH.
+    induction l as [ | a' l IH ].
+    + contradiction (in_nil inH).
+    + destruct (in_inv inH).
+      * apply in_proj_eq. unfold id. exact H.
+      * apply in_proj_cons. apply IH. exact H.
+  - intro ipH.
+    induction l as [ | a' l IH ].
+    + contradiction (in_proj_nil ipH).
+    + destruct (in_proj_inv ipH).
+      * unfold id in H.
+        rewrite H.
+        apply in_eq.
+      * apply in_cons. apply IH. exact H.
+Qed.  
 
-(* If A is finite and surjects onto B then B is finite. *)
-Lemma finite_surj {A B : Set} (f : A -> B)
-  : Finite A -> Surjective f -> Finite B.
-Proof.
-  intros finA surjF.
-  unfold Finite in finA. destruct finA as [ lst fullH ].
-  unfold Finite. exists (map f lst).
-  unfold Full. intro b.
-  unfold Surjective in surjF.
-  case (surjF b). intro a; clear surjF.
-  intro fa. rewrite <- fa; clear fa.
-  apply in_map; clear b f B.
-  unfold Full in fullH. apply fullH.
-Qed.
+(** ** The relation between [InProj] and mapping over lists
 
-(* We'd like to prove that if A injects into B and B is finite then A
-   is itself finite. This is slightly difficult, because we have to
-   construct the list.
-
-   First we define a way to construct this list of elements if we have
-   a decidability proof that says an element b is either in the image
-   of f or not. In fact, we ask for a pseudo-inverse, and then use a
-   Haskell-style cat_maybes function.
+   The Coq standard library defines a lemma [in_map], which says that
+   if [a] is in [lst] then [f a] is in [map f lst]. The corresponding
+   lemma for [InProj] is slightly more complicated to state. The
+   point is that the right notion of a "map" between two projections
+   [p : A -> B] and [p' : A' -> B'] is a pair of maps between the tops
+   and bottoms, making the naturality square commute.
+   % \begin{equation}
+     \label{eq:natsq}
+     \begin{tikzcd}
+       A \arrow[d, "p"] \arrow[r, "f"] &
+       A' \arrow[d, "p'"]
+       \\
+       B \arrow[r, "g"] &
+       B'
+     \end{tikzcd}
+   \end{equation} %
+   This naturality condition is passed as a hypothesis to [in_proj_map].
 
  *)
-Fixpoint cat_maybes {A B : Set} (f : A -> option B) (lst : list A) : list B :=
-  match lst with
-  | nil => nil
-  | cons a lst' => match f a with
-                  | Some b => b :: cat_maybes f lst'
-                  | None => cat_maybes f lst'
-                  end
+Lemma in_proj_map
+      (A A' B B' : Type)
+      (f : A -> A') (g : B -> B') (p : A -> B) (p' : A' -> B') b l
+  : (forall a, p' (f a) = g (p a)) ->
+    InProj p b l ->
+    InProj p' (g b) (map f l).
+Proof.
+  intro natH.
+  induction l as [ | a l IH ].
+  - intro H. contradiction (in_proj_nil H).
+  - intro H.
+    destruct (in_proj_inv H); clear H.
+    + apply in_proj_eq.
+      rewrite <- H0.
+      apply natH.
+    + rewrite map_cons.
+      apply in_proj_cons.
+      apply IH. exact H0.
+Qed.
+
+(**
+   We follow up after [in_proj_map] with some specialised versions
+   that collapse single sides of the diagram. Firstly,
+   [in_proj_map_id_p], which uses this diagram:
+   % \begin{equation}
+     \begin{tikzcd}
+       A \arrow[dr, "g"'] \arrow[r, "f"] &
+       A' \arrow[d, "p"]
+       \\
+       &
+       B'
+     \end{tikzcd}
+   \end{equation} %
+*)
+
+Lemma in_proj_map_id_p
+      {A A' B : Type} (f : A -> A') (g: A -> B) (p : A' -> B) a l
+  : (forall a, p (f a) = g a) -> In a l -> InProj p (g a) (map f l).
+Proof.
+  intros natH inH.
+  apply (in_proj_map f g id p a l).
+  - intro a'. unfold id. apply natH.
+  - apply in_proj_in. exact inH.
+Qed.
+
+(**
+   Now [in_proj_map_id_p'], which collapses [p'] instead of [p]:
+   % \begin{equation}
+     \begin{tikzcd}
+       A \arrow[d, "p"] \arrow[r, "f"] &
+       A'
+       \\
+       B \arrow[ur, "g"'] &
+     \end{tikzcd}
+   \end{equation} %
+*)
+
+Lemma in_proj_map_id_p'
+      {A B A' : Type} (f : A -> A') (g : B -> A') (p : A -> B) b l
+  : (forall a, f a = g (p a)) -> InProj p b l -> In (g b) (map f l).
+Proof.
+  intros natH ipH.
+  apply in_proj_in.
+  apply (in_proj_map f g p id b l).
+  - intro a. unfold id. apply natH.
+  - exact ipH.
+Qed.
+
+(**
+   Finally, [in_proj_map_id_g], which collapses [g] across the bottom:
+   % \begin{equation}
+     \begin{tikzcd}
+       A \arrow[dr, "p"'] \arrow[rr, "f"] & &
+       A' \arrow[dl, "p'"]
+       \\
+       & B &
+     \end{tikzcd}
+   \end{equation} %
+*)
+
+Lemma in_proj_map_id_g
+      {A A' B : Type} (f : A -> A') (p : A -> B) (p' : A' -> B) b l
+  : (forall a, p' (f a) = p a) -> InProj p b l -> InProj p' b (map f l).
+Proof.
+  intros natH ipH.
+  apply (in_proj_map f id p p' b l).
+  - unfold id. exact natH.
+  - exact ipH.
+Qed.
+
+(** * Fullness of lists and finiteness
+
+   Now that we have a projective notion of [In], we can define
+   [FullProj] using it. We want to say that "the image of [p : A -> B]
+   is covered by the image of the given list".
+
+*)
+
+Definition FullProj (A B : Type) (p : A -> B) (l : list A) : Prop :=
+  forall a : A, InProj p (p a) l.
+
+Definition FiniteProj (A B : Type) (p : A -> B) : Prop :=
+  exists l : list A, FullProj p l.
+
+(** * The disjoint sum of two finite sets is finite
+
+   With projections, this might mean an internal or external sum (is
+   the target [B + B'] or just [B]?). We'll prove the external version
+   here and then use a surjectivity result to prove the internal
+   version as a corollary later% (see section
+   \ref{sec:int-sum-finite})%.
+
+   To prove this, you take a list for each projection, map the
+   elements into an option type and then join the two resulting lists
+   together. The new projection we need is a map [A + A' -> B + B']
+   which is constructed with [sumf], defined below (it's just the
+   external sum of two maps).
+
+ *)
+Definition sumf {A A' B B'} (f : A -> B) (g : A' -> B') (aa : A + A')
+  : B + B' :=
+  match aa with
+  | inl a => inl (f a)
+  | inr a' => inr (g a')
   end.
 
-Lemma cat_maybes_inv (A B : Set) (f : A -> option B) (a : A) (lst : list A)
-  : cat_maybes f (a :: lst) = match f a with
-                              | Some b => b :: cat_maybes f lst
-                              | None => cat_maybes f lst
-                              end.
+Lemma finite_sum {A A' B B': Type} (p : A -> B) (p' : A' -> B')
+      : FiniteProj p -> FiniteProj p' -> FiniteProj (sumf p p').
 Proof.
-  unfold cat_maybes at 1.
-  fold (@cat_maybes A B).
-  apply eq_refl.
+  (* Unfold finiteness and then unpack the assumptions *)
+  unfold FiniteProj.
+  intros exP exP'.
+  destruct exP as [ la fpA ].
+  destruct exP' as [ la' fpA' ].
+  (* The full element will be map inl la + map inr la' *)
+  exists ((map inl la) ++ (map inr la')).
+  unfold FullProj. intro aa.
+  (* Proceed by case analysis: is aa in A or A'? *)
+  destruct aa as [ a | a' ].
+  - clear fpA'.
+    apply in_proj_or_app; left.
+    apply (in_proj_map inl inl p (sumf p p')).
+    + reflexivity.
+    + unfold FullProj in fpA. apply fpA.
+  - clear fpA.
+    apply in_proj_or_app; right.
+    apply (in_proj_map inr inr p' (sumf p p')).
+    + reflexivity.
+    + unfold FullProj in fpA'. apply fpA'.
 Qed.
 
-(* full_inv deals with the case where I have maps f, inv such that inv
-   is a left-inverse for f, but mapping to option A so that we don't
-   need choice when we don't have a pre-image.
+(** * The surjective image of a finite set is finite.
 
-   The first proposition is asking that inv really is a left inverse
-   for (f o Some). Then we say that if lst lists the elements of B, we
-   can create a full list of the elements of A by discarding the Nones
-   from the list you get by mapping inv over lst.
+   Here, we have to be a little careful with what we mean by
+   "surjective". Remember that our projection [p: A -> B] needn't
+   itself be surjective: we're only interested in the image of [p] as
+   a subset of [B] (onto which p is obviously surjective).
+
+   So we define a [SurjectiveProj] predicate. For the usual natural
+   square% (see equation \ref{eq:natsq})%, saying that it is
+   [SurjectiveProj] means that [g] restricted to the image of [p]
+   surjects onto the image of [p']. We define this explicitly, rather
+   than with Coq's builtin [Surjective] predicate (because we don't
+   want to talk about the image of [p] as a type in itself).
+
+   Note that this surjectivity definition doesn't imply that the upper
+   map, f, is surjective. That's a good thing, because in the
+   motivating sigma type example, we definitely don't want to claim
+   that we can map to every proof "upstairs".
+
+*)
+
+Definition SurjectiveProj
+           {A B A' B' : Type} (g : B -> B') (p : A -> B) (p' : A' -> B') :=
+  forall a' : A', exists a : A, g (p a) = p' a'.
+
+Lemma finite_surj
+      {A A' B B' : Type}
+      (f : A -> A') (g : B -> B') (p : A -> B) (p' : A' -> B')
+  : FiniteProj p ->
+    (forall a, p' (f a) = g (p a)) ->
+    SurjectiveProj g p p' ->
+    FiniteProj p'.
+Proof.
+  unfold FiniteProj.
+  intros fullP natH surjH.
+  destruct fullP as [l fullH].
+  exists (map f l).
+  unfold FullProj; intro a'.
+  unfold SurjectiveProj in surjH.
+  destruct (surjH a') as [ a aH ]; clear surjH.
+  rewrite <- aH.
+  apply (in_proj_map f g p p'); try (exact natH).
+  unfold FullProj in fullH.
+  apply fullH.
+Qed.
+
+(** There's a degenerate case of [finite_surj], where we actually just
+   have a second (surjective) projection to apply after [p]. Note that
+   this asks for a genuine surjection from [B] to [B']. You could
+   weaken this slightly, but at that point you may as well just use
+   [finite_surj] explicitly.  *)
+
+Lemma finite_surj_vert {A B B' : Type} (p : A -> B) (q : B -> B')
+  : FiniteProj p -> Surjective q -> FiniteProj (compose q p).
+Proof.
+  intros fpH surjH.
+  apply (@finite_surj _ _ _ _ id q p (compose q p) fpH).
+  - reflexivity.
+  - unfold SurjectiveProj, compose.
+    intro a. exists a. exact eq_refl.
+Qed.
+
+(** ** Finiteness of an internal sum %\label{sec:int-sum-finite}%
+
+  Now for the promised internal sum version of [finite_sum]. The proof
+  of this just goes by composing the external sum with a folding
+  operation, [codiag: A + A -> A], defined in the obvious way.
+
  *)
-Lemma full_inv (A B : Set) (f : A -> B) (inv : B -> option A) (lst : list B)
-  : (forall a, inv (f a) = Some a) -> Full lst -> Full (cat_maybes inv lst).
-Proof.
-  intros invH fullH.
-  unfold Full. intro a.
-  unfold Full in fullH; pose proof (fullH (f a)) as in_fa_H; clear fullH.
-  induction lst as [ | a0 lst IH ].
-  - unfold In in in_fa_H. contradiction in_fa_H.
-  - (* in_fa_H is now In (f a) (a0 :: lst) *)
-    rewrite cat_maybes_inv.
-    apply in_inv in in_fa_H.
-    destruct in_fa_H as [ eqH | ].
-    + (* f a = a0 *)
-      rewrite eqH.
-      rewrite invH.
-      apply in_eq.
-    + (* In (f a) lst *)
-      apply IH in H; clear IH.
-      case (inv a0).
-      * intro aa. apply in_cons. exact H.
-      * exact H.
-Qed.
+Definition codiag {A : Type} (a : A + A) : A :=
+  match a with
+  | inl a => a
+  | inr a => a
+  end.
 
-Lemma finite_inj {A B : Set} (f : A -> B) (g : B -> option A)
-  : Finite B -> (forall a, g (f a) = Some a) -> Finite A.
+Lemma surj_codiag A : Surjective (@codiag A).
 Proof.
-  intros finB invG.
-  unfold Finite in finB; destruct finB as [ bs fullB ].
-  unfold Finite.
-  exists (cat_maybes g bs).
-  apply (full_inv _ _ _ _ _ invG).
-  exact fullB.
-Qed.
-
-Lemma finite_option {A : Set}
-  : Finite (option A) -> Finite A.
-Proof.
-  intro finOp.
-  apply (finite_inj Some id finOp).
+  unfold Surjective.
   intro a.
-  unfold id.
+  exists (inl a).
+  unfold codiag.
   exact eq_refl.
 Qed.
+
+Definition internal_sumf {A A' B} (f : A -> B) (g : A' -> B) : A + A' -> B :=
+  compose codiag (sumf f g).
+
+Lemma finite_sum_internal {A A' B} (p : A -> B) (p' : A' -> B)
+  : FiniteProj p -> FiniteProj p' -> FiniteProj (internal_sumf p p').
+Proof.
+  unfold internal_sumf.
+  intros fpH fpH'.
+  apply finite_surj_vert.
+  - exact (finite_sum fpH fpH').
+  - exact (@surj_codiag B).
+Qed.
+
+(** * Finiteness with injections
+
+   Now we want to prove something related to the basic result from
+   maths that if I have an injection [f : X -> Y] and know that [Y] is
+   finite, then [X] must be finite too.
+
+   To prove finiteness in Coq, you need to build some form of a
+   listing of [X]. Merely knowing that [f] is injective isn't going to
+   be enough to construct this from a listing of [Y]: we'd need some
+   non-constructive choice axiom to pick elements of [X] in the
+   inverse image. In classical maths, a map [f] is injective if and
+   only if it has a left inverse [g] (so $g \circ f =
+   \mathrm{id}$). We'll ask to be given this map, which does the "find
+   something in the inverse image" operation for us.
+
+   In practice, that's a pain to produce, so we'll actually ask for a
+   map [g : Y -> option X], satisfying [g (f a) = Some a]. Note that
+   this implies that no element in the image of [f] gets mapped to
+   [None], so in a non-constructive setting we could extend [g] to a
+   map [Y -> X] by mapping [None] to some arbitrary element of [X].
+
+   ** Mapping and filtering
+
+   If we start with a listing of the image of [p'], we can apply our
+   partial inverse to each element to get a list of [option
+   A]'s. Filtering out the [None]'s gives a list of elements of [A],
+   which generate our listing of the image of [p].
+*)
+
+Section map_filter.
+  Variables (A A' : Type).
+  Variable (h : A' -> option A).
+
+  Fixpoint map_filter (l : list A') : list A :=
+    match l with
+    | nil => nil
+    | cons a' l' => match h a' with
+                    | Some a => a :: map_filter l'
+                    | None => map_filter l'
+                    end
+    end.
+
+  Lemma map_filter_inv a' l
+    : map_filter (a' :: l) = match h a' with
+                                | Some a => a :: map_filter l
+                                | None => map_filter l
+                                end.
+  Proof. reflexivity. Qed.
+
+  (**
+
+     We want to precisely characterise when an element is in the image
+     of [map_filter]. To make sense of this, we need to do a little
+     more setup. The commutative diagram we're interested in is:
+     % \begin{equation}
+       \begin{tikzcd}
+         A' \arrow[r, "h"] \arrow[d, "p'"] &
+         \mathrm{option}\,A \arrow[d] &
+         A \arrow[l, "\mathrm{Some}"'] \arrow[d, "p"]
+         \\
+         B' \arrow[r, "k"] &
+         \mathrm{option}\,B &
+         B
+         \arrow[l, "\mathrm{Some}"']
+       \end{tikzcd}
+     \end{equation} %
+     where the vertical map in the middle is [option_map p]. The right hand
+     square commutes for free by the definition of [option_map]. Commutativity
+     of the left hand square is the [natH] hypothesis below.
+
+   *)
+
+  Variables (B B' : Type).
+  Variable (k : B' -> option B).
+  Variable (p : A -> B).
+  Variable (p' : A' -> B').
+  Hypothesis (natH: forall a', option_map p (h a') = k (p' a')).
+
+  Lemma in_proj_map_filter l a
+    : (exists a', h a' = Some a /\ InProj p' (p' a') l) ->
+      InProj p (p a) (map_filter l).
+  Proof.
+    intros H; destruct H as [ a' H ]; destruct H as [ a'H inH ].
+    induction l as [ | x' l IH ].
+    - contradiction inH.
+    - destruct (in_proj_inv inH); clear inH.
+      + (* We have x' : A' and we want to show that it will yield p a
+           when pushed through map_filter. Since x' and a' both map
+           to the same value under p, we can use natH to see that h x'
+           and h a' map to the same value under option_map p. *)
+        assert (hx'H: option_map p (h x') = option_map p (h a'));
+          try (rewrite natH, natH, H; exact eq_refl).
+        clear natH IH H. rewrite a'H in hx'H. clear a'H.
+        unfold option_map in hx'H; fold (option_map p (h x')) in hx'H.
+        (* After rewriting, hxH is option_map p (h x') = Some (p a).
+           That must mean h x is Some something (by looking at the
+           definition of option_map) *)
+        case_eq (h x');
+          try (intro U; rewrite U in hx'H; discriminate hx'H).
+        intros x hx'H'.
+        (* Now we can do a little unpacking to conclude that p x
+           equals p a. *)
+        assert (p_eq_H: p x = p a);
+          try (rewrite hx'H' in hx'H; inversion hx'H; exact eq_refl).
+        clear hx'H. rename hx'H' into hx'H.
+        rewrite map_filter_inv, hx'H.
+        apply in_proj_eq.
+        exact p_eq_H.
+      + (* This is the easier case, where we just pass stuff through
+           induction. *)
+        enough (InProj p (p a) (map_filter l)) as Hrst.
+        * rewrite map_filter_inv.
+          destruct (h x'); try (apply in_proj_cons); exact Hrst.
+        * apply IH. exact H.
+  Qed.
+End map_filter.
