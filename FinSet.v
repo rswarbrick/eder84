@@ -550,3 +550,40 @@ Section map_filter.
     - rewrite natfgH; exact eq_refl.
   Qed.
 End map_filter.
+
+(** * Finiteness of option types
+
+     This section shows that a type is finite if and only if the
+     corresponding option type is.
+*)
+Section finite_option.
+  Variables (A B : Type).
+  Variable (p : A -> B).
+
+  Lemma finite_option_intro : FiniteProj p -> FiniteProj (option_map p).
+  Proof.
+    unfold FiniteProj.
+    intro finP.
+    destruct finP as [ l fullL ].
+    exists (cons None (map Some l)).
+    unfold FullProj.
+    intro x; destruct x as [ a | ].
+    - apply in_proj_cons.
+      simpl.
+      apply (in_proj_map Some Some p); try reflexivity.
+      unfold FullProj in fullL. apply fullL.
+    - apply in_proj_eq; reflexivity.
+  Qed.
+
+  Lemma finite_option_elim : FiniteProj (option_map p) -> FiniteProj p.
+  Proof.
+    assert (H0: (forall a' : option A,
+                    option_map p (id a') = id (option_map p a')));
+      try reflexivity.
+    assert (H1: forall a : A, option_map p (Some a) = Some (p a));
+      try reflexivity.
+    assert (H2: forall a : A, id (Some (p a)) = Some (p a));
+      try reflexivity.
+    apply (finite_left_inverse id id p H0 Some Some H1 H2).
+  Qed.
+End finite_option.
