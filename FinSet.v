@@ -109,7 +109,7 @@ Proof.
         rewrite H.
         apply in_eq.
       * apply in_cons. apply IH. exact H.
-Qed.  
+Qed.
 
 (** ** The relation between [InProj] and mapping over lists
 
@@ -459,32 +459,29 @@ Section map_filter.
   Hypothesis (natH: forall a', option_map p (h a') = k (p' a')).
 
   Lemma in_proj_map_filter l a
-    : (exists a', h a' = Some a /\ InProj p' (p' a') l) ->
+    : (exists a', k (p' a') = Some (p a) /\ InProj p' (p' a') l) ->
       InProj p (p a) (map_filter l).
   Proof.
-    intros H; destruct H as [ a' H ]; destruct H as [ a'H inH ].
+    intros H; destruct H as [ a' H ]; destruct H as [ mapH inH ].
     induction l as [ | x' l IH ].
     - contradiction inH.
     - destruct (in_proj_inv inH); clear inH.
-      + (* We have x' : A' and we want to show that it will yield p a
-           when pushed through map_filter. Since x' and a' both map
-           to the same value under p, we can use natH to see that h x'
-           and h a' map to the same value under option_map p. *)
-        assert (hx'H: option_map p (h x') = option_map p (h a'));
-          try (rewrite natH, natH, H; exact eq_refl).
-        clear natH IH H. rewrite a'H in hx'H. clear a'H.
-        unfold option_map in hx'H; fold (option_map p (h x')) in hx'H.
-        (* After rewriting, hxH is option_map p (h x') = Some (p a).
+      + clear IH.
+        (* This is the case where we're supposed to get a hit at the
+           start of the list. We have some x' where p' x' = p' a' (both
+           elements of B'). *)
+        rewrite <- H in mapH; clear H.
+        rewrite <- (natH x') in mapH; clear natH.
+        (* Now mapH says that option_map p (h x') = Some (p a).
            That must mean h x is Some something (by looking at the
            definition of option_map) *)
         case_eq (h x');
-          try (intro U; rewrite U in hx'H; discriminate hx'H).
-        intros x hx'H'.
+          try (intro U; rewrite U in mapH; discriminate mapH).
+        intros x hx'H.
         (* Now we can do a little unpacking to conclude that p x
            equals p a. *)
         assert (p_eq_H: p x = p a);
-          try (rewrite hx'H' in hx'H; inversion hx'H; exact eq_refl).
-        clear hx'H. rename hx'H' into hx'H.
+          try (rewrite hx'H in mapH; inversion mapH; exact eq_refl).
         rewrite map_filter_inv, hx'H.
         apply in_proj_eq.
         exact p_eq_H.
@@ -494,5 +491,62 @@ Section map_filter.
         * rewrite map_filter_inv.
           destruct (h x'); try (apply in_proj_cons); exact Hrst.
         * apply IH. exact H.
+  Qed.
+
+  Lemma full_proj_map_filter l
+    : (forall a, exists a' : A', k (p' a') = Some (p a) /\ InProj p' (p' a') l) ->
+      FullProj p (map_filter l).
+  Proof.
+    intro H; unfold FullProj; intro a.
+    apply in_proj_map_filter, H.
+  Qed.
+
+  Variable f : A -> A'.
+  Variable g : B -> B'.
+  Hypothesis natfgH: forall a, p' (f a) = g (p a).
+  Hypothesis kleftH: forall a, k (g (p a)) = Some (p a).
+
+  (** We finally get to the full lemma. The big commutative diagram
+     can be drawn as:
+     % \begin{equation}
+       \begin{tikzcd}
+         A \arrow[rr, "f"] \arrow[dr, hookrightarrow] \arrow[ddd, "p"'] &
+         &
+         A' \arrow[ld, "h"] \arrow[ddd, "p'"]
+         \\
+           & \mathrm{option}\,A \arrow[d, "\mathrm{option\_map}(p)"'] &
+         \\
+           & \mathrm{option}\,B &
+         \\
+         B \arrow[ur, hookrightarrow] \arrow[rr, "g"]& & B' \arrow[ul, "k"']
+       \end{tikzcd}
+     \end{equation} %
+
+
+     The left hand square commutes by definition of [option_map]. The outer
+     square commutes, by the hypothesis [natfgH]. The bottom left half of the
+     diagram commutes by the hypothesis [kleftH] (because
+     [option_map p (Some a) = Some (p a)]).
+
+     The point is that the existence of [k], which acts as (almost) the left
+     inverse of the restriction of [g] to the image of [p] is equivalent to
+     injectivity of [g] on the image of [p] in a non-constructive setting.
+   *)
+
+  Lemma finite_left_inverse : FiniteProj p' -> FiniteProj p.
+  Proof.
+    unfold FiniteProj.
+    destruct 1 as [ l' l'H ].
+    exists (map_filter l').
+    apply full_proj_map_filter.
+    intro a.
+    unfold FullProj in l'H.
+    exists (f a).
+    rewrite (natfgH a).
+    rewrite kleftH; clear kleftH.
+    constructor; try exact eq_refl.
+    enough (H: g (p a) = p' (f a)).
+    - rewrite H. apply l'H.
+    - rewrite natfgH; exact eq_refl.
   Qed.
 End map_filter.
