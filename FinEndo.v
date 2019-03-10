@@ -11,6 +11,7 @@ Require Import Lists.List.
 Require Import Logic.FinFun.
 Require Import Logic.Decidable.
 Require Import Program.Basics.
+Require Import Bool.
 
 Require Import SymbComp.FinSet.
 
@@ -91,99 +92,216 @@ Qed.
     the map (otherwise we don't know when elements are in the domain).
  *)
 
-Section DecFinEndo.
-  Variable A : Set.
-  Hypothesis decA : forall x y : A, {x = y} + { ~ x = y }.
+Module FinEndoComp.
+  Section FinEndoComp.
+    Variable A : Type.
+    Hypothesis decA : forall x y : A, {x = y} + { ~ x = y }.
 
-  Variables f g : A -> A.
-  Hypothesis finF : fin_endo f.
-  Hypothesis finG : fin_endo g.
+    Variables f g : A -> A.
+    Hypothesis finF : fin_endo f.
+    Hypothesis finG : fin_endo g.
 
-  (** Firstly, we define the four maps in the square and show that it
+    (** Firstly, we define the four maps in the square and show that it
       commutes. *)
 
-  Definition map_a (a : A) : option (dom (compose g f)) :=
-    match decA (g (f a)) a with
-    | left _ => None
-    | right neH => Some (exist _ a (fun eqH => neH eqH))
-    end.
+    Local Definition map_a (a : A) : option (dom (compose g f)) :=
+      match decA (g (f a)) a with
+      | left _ => None
+      | right neH => Some (exist _ a (fun eqH => neH eqH))
+      end.
 
-  Definition proj0 : option (dom g + dom f) -> option (A + A) :=
-    option_map (sumf (dom_elt (f := g)) (dom_elt (f := f))).
+    Local Definition proj0 : option (dom g + dom f) -> option (A + A) :=
+      option_map (sumf (dom_elt (f := g)) (dom_elt (f := f))).
 
-  Definition proj1 : option (dom (compose g f)) -> option A :=
-    option_map (dom_elt (f := compose g f)).
+    Local Definition proj1 : option (dom (compose g f)) -> option A :=
+      option_map (dom_elt (f := compose g f)).
 
-  Definition top_map (x : option (dom g + dom f))
-    : option (dom (compose g f)) :=
-    match x with
-    | None => None
-    | Some dd => match dd with
-                 | inl dg => map_a (dom_elt dg)
-                 | inr df => map_a (dom_elt df)
-                 end
-    end.
+    Local Definition top_map (x : option (dom g + dom f))
+      : option (dom (compose g f)) :=
+      match x with
+      | None => None
+      | Some dd => match dd with
+                   | inl dg => map_a (dom_elt dg)
+                   | inr df => map_a (dom_elt df)
+                   end
+      end.
 
-  Definition bot_map (x : option (A + A)) : option A :=
-    match x with
+    Local Definition bot_map (x : option (A + A)) : option A :=
+      match x with
       | None => None
       | Some aa => match aa with
                    | inl a => proj1 (map_a a)
                    | inr a => proj1 (map_a a)
                    end
-    end.
+      end.
 
-  Lemma natH : forall x, proj1 (top_map x) = bot_map (proj0 x).
-  Proof.
-    intro x. destruct x as [ dd | ].
-    - destruct dd; reflexivity.
-    - reflexivity.
-  Qed.
+    Local Lemma natH : forall x, proj1 (top_map x) = bot_map (proj0 x).
+    Proof.
+      intro x. destruct x as [ dd | ].
+      - destruct dd; reflexivity.
+      - reflexivity.
+    Qed.
 
-  (** Now, let's prove that [proj0] is indeed [FiniteProj]. It turns
+    (** Now, let's prove that [proj0] is indeed [FiniteProj]. It turns
       out that we can do this with a bare proof term: all the work was
       done in the [SymbComp.FinSet] script. *)
 
-  Definition fin_proj0 : FiniteProj proj0 :=
-    finite_option_intro (finite_sum finG finF).
+    Local Definition fin_proj0 : FiniteProj proj0 :=
+      finite_option_intro (finite_sum finG finF).
 
-  (** To apply the [finite_surj] lemma, we'll need to prove that the
+    (** To apply the [finite_surj] lemma, we'll need to prove that the
       bottom map has the required surjectivity. This is just a finicky
       case analysis. *)
 
-  Lemma surjH : SurjectiveProj bot_map proj0 proj1.
-  Proof.
-    unfold SurjectiveProj.
-    intro x; destruct x as [ dgf | ].
-    - destruct dgf as [ a in_dom_a ].
-      case (decA (f a) a) as [ feqH | fneH ].
-      + case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
-        * contradiction in_dom_a; clear in_dom_a.
-          rewrite <- feqH at 2; clear feqH.
-          unfold compose. exact gfeqH.
-        * rewrite feqH in gfneH; rename gfneH into gneH.
-          exists (Some (inl (exist _ a gneH))).
+    Local Lemma surjH : SurjectiveProj bot_map proj0 proj1.
+    Proof.
+      unfold SurjectiveProj.
+      intro x; destruct x as [ dgf | ].
+      - destruct dgf as [ a in_dom_a ].
+        case (decA (f a) a) as [ feqH | fneH ].
+        + case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
+          * contradiction in_dom_a; clear in_dom_a.
+            rewrite <- feqH at 2; clear feqH.
+            unfold compose. exact gfeqH.
+          * rewrite feqH in gfneH; rename gfneH into gneH.
+            exists (Some (inl (exist _ a gneH))).
+            simpl. unfold map_a.
+            destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
+            -- rewrite feqH in gfeqH. contradiction.
+            -- reflexivity.
+        + exists (Some (inr (exist _ a fneH))).
           simpl. unfold map_a.
           destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-          -- rewrite feqH in gfeqH. contradiction.
-          -- reflexivity.
-      + exists (Some (inr (exist _ a fneH))).
-        simpl. unfold map_a.
-        destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-        * contradiction.
-        * reflexivity.
-    - exists None.
-      reflexivity.
-  Qed.
+          * contradiction.
+          * reflexivity.
+      - exists None.
+        reflexivity.
+    Qed.
 
-  (** We finally have all the bits we need to prove the theorem we
+    (** We finally have all the bits we need to prove the theorem we
       wanted: that composition preserves the [fin_endo] property.
-   *)
+     *)
 
-  Lemma compose_fin_endo : fin_endo (compose g f).
-  Proof.
-    unfold fin_endo.
-    apply finite_option_elim.
-    apply (finite_surj top_map fin_proj0 natH surjH).
-  Qed.
-End DecFinEndo.
+    Lemma compose_fin_endo : fin_endo (compose g f).
+    Proof.
+      unfold fin_endo.
+      apply finite_option_elim.
+      apply (finite_surj top_map fin_proj0 natH surjH).
+    Qed.
+  End FinEndoComp.
+End FinEndoComp.
+Import FinEndoComp.
+
+(** * Restriction
+
+   The domain of a finite endomorphism can be restricted, which means
+   that it's forced to be the identity except a certain elements. In a
+   classical setting, you talk about restricting to a subset of [A],
+   but this doesn't really work here (since subsets aren't really a
+   thing). Instead, we'll talk about restricting an endomorphism to
+   points where some decidable predicate is true.
+
+ *)
+Module Restrictions.
+  Section Restrictions.
+    Variable A : Type.
+    Variable in_spt : A -> Prop.
+    Hypothesis dec_in_spt : forall a, {in_spt a} + {~ in_spt a}.
+
+    Definition restrict_map (f : A -> A) (a : A) : A :=
+      if dec_in_spt a then f a else a.
+
+    (** We now have to show that the restriction of a [fin_endo] map is
+      itself [fin_endo]. A stronger result that we might wish to prove
+      later is that if [in_support] has some finiteness properties
+      then restricting _any_ map by it yields a [fin_endo] map. But
+      that's not what we're doing here.
+
+      The actual definition of the top map is rather unpleasant, and
+      we have to prove an auxiliary lemma to build it, but ignoring
+      the proof stuff, the map is just [Some].
+
+     *)
+    Variable f : A -> A.
+
+    Local Definition proj0 : dom (restrict_map f) -> A :=
+      @dom_elt _ (restrict_map f).
+
+    Local Definition proj1 : (dom f) -> A := @dom_elt _ f.
+
+    Local Definition dom_proof a
+      : in_dom f a -> in_spt a -> in_dom (restrict_map f) a.
+    Proof.
+      intros domH sptH.
+      unfold in_dom, restrict_map.
+      case (dec_in_spt a).
+      - intro. unfold in_dom in domH. exact domH.
+      - intro H. contradiction (H sptH).
+    Qed.
+
+    Local Definition h (x : dom f) : option (dom (restrict_map f)) :=
+      let (a, domH) := x in
+      match dec_in_spt a with
+      | left sptH => Some (exist _ a (dom_proof domH sptH))
+      | right _ => None
+      end.
+
+    Local Definition k (a : A) : option A :=
+      if dec_in_spt a then Some a else None.
+
+    Local Lemma hk_in_spt a H
+      : in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
+    Proof.
+      intros; unfold h, k; destruct (dec_in_spt a).
+      - reflexivity.
+      - contradiction.
+    Qed.
+
+    Local Lemma hk_no_spt a H
+      : ~ in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
+    Proof.
+      intros; unfold h, k; destruct (dec_in_spt a).
+      - contradiction.
+      - reflexivity.
+    Qed.
+
+    Local Lemma natH0 : forall x : dom f, option_map proj0 (h x) = k (proj1 x).
+    Proof.
+      intro x.
+      case x as [ a H ].
+      destruct (dec_in_spt a) as [ sptH | nsptH ];
+        unfold proj1, dom_elt, proj1_sig.
+      - apply (hk_in_spt H sptH).
+      - apply (hk_no_spt H nsptH).
+    Qed.
+
+    Lemma in_dom_from_restrict a : in_dom (restrict_map f) a -> in_dom f a.
+    Proof.
+      unfold in_dom, restrict_map in *.
+      destruct (dec_in_spt a); auto.
+    Qed.
+
+    Definition restrict_dom_inject (x : dom (restrict_map f)) : dom f :=
+      let (a, domH) := x in exist _ a (in_dom_from_restrict domH).
+
+    Lemma restrict_preserves_fin_endo
+      : fin_endo f -> fin_endo (restrict_map f).
+    Proof.
+      unfold fin_endo.
+      apply (@finite_left_inverse
+               (dom (restrict_map f)) (dom f)
+               h A A k proj0 proj1 natH0
+               restrict_dom_inject id).
+      - intro x. destruct x as [ a H ].
+        reflexivity.
+      - intro x. destruct x as [ a H ].
+        simpl; unfold k, id.
+        unfold in_dom, restrict_map in H.
+        revert H.
+        case (dec_in_spt a).
+        + reflexivity.
+        + contradiction.
+    Qed.
+  End Restrictions.
+End Restrictions.
+Import Restrictions.
