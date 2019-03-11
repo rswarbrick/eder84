@@ -191,7 +191,7 @@ Module FinEndoComp.
   End FinEndoComp.
 End FinEndoComp.
 Import FinEndoComp.
-
+Export FinEndoComp.
 (** * Restriction
 
    The domain of a finite endomorphism can be restricted, which means
@@ -305,3 +305,4 @@ Module Restrictions.
   End Restrictions.
 End Restrictions.
 Import Restrictions.
+Export Restrictions.
