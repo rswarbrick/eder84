@@ -554,8 +554,13 @@ End map_filter.
 (** * Finiteness of option types
 
      This section shows that a type is finite if and only if the
-     corresponding option type is.
+     corresponding option type is. Use [finite_option_intro] to infer
+     that an option type is finite. More usefully,
+     [finite_option_elim] allows you to prove finiteness of an option
+     type in order to conclude finiteness of the underlying type.
+
 *)
+
 Section finite_option.
   Variables (A B : Type).
   Variable (p : A -> B).
@@ -587,3 +592,70 @@ Section finite_option.
     apply (finite_left_inverse id id p H0 Some Some H1 H2).
   Qed.
 End finite_option.
+
+(** * An easier way to prove finiteness with surjectivity
+
+    The [finite_surj] lemma is all very well, but it's sometimes a bit
+    difficult to construct exactly the map you want. When trying to
+    define a surjection from [p : A -> B] to [p' : A' -> B'], there
+    might be some elements, [a], that we don't care about and just
+    want to map to [None]. In this section, we do the leg-work to make
+    this approach work properly.
+
+*)
+Module surj_finite_option.
+  Definition lift_opt {A B : Type} (f : A -> option B) (oa : option A)
+  : option B :=
+    match oa with
+    | Some a => f a
+    | None => None
+    end.
+
+  Section surj_finite_option.
+    Variables A A' B B' : Type.
+    Variable p: A -> B.
+    Variable p': A' -> B'.
+    Variable f: A -> option A'.
+    Variable g: B -> option B'.
+
+    Hypothesis finP : FiniteProj p.
+    Hypothesis natH : forall a, option_map p' (f a) = g (p a).
+    Hypothesis surjH : forall a' : A', exists a : A, g (p a) = Some (p' a').
+
+    Local Definition xp := option_map p.
+    Local Definition xp' := option_map p'.
+    Local Definition xf := lift_opt f.
+    Local Definition xg := lift_opt g.
+
+    Local Lemma OfinP : FiniteProj xp.
+    Proof.
+      exact (finite_option_intro finP).
+    Qed.
+
+    Local Lemma OnatH: forall a : option A, xp' (xf a) = xg (xp a).
+    Proof.
+      intro a; destruct a; simpl; auto.
+    Qed.
+
+    Local Lemma OsurjH
+      : forall x' : option A', exists x : option A, xg (xp x) = xp' x'.
+    Proof.
+      intro x'; destruct x' as [ a' | ].
+      - specialize (surjH a').
+        destruct surjH as [ a H ]; clear surjH.
+        exists (Some a).
+        auto.
+      - exists None.
+        auto.
+    Qed.
+
+    Lemma finite_surj_option : FiniteProj p'.
+    Proof.
+      apply finite_option_elim.
+      apply (finite_surj xf OfinP OnatH OsurjH).
+    Qed.
+  End surj_finite_option.
+End surj_finite_option.
+
+Import surj_finite_option.
+Export surj_finite_option.
