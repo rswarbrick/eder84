@@ -110,72 +110,63 @@ Module FinEndoComp.
       | right neH => Some (exist _ a (fun eqH => neH eqH))
       end.
 
-    Local Definition proj0 : option (dom g + dom f) -> option (A + A) :=
-      option_map (sumf (dom_elt (f := g)) (dom_elt (f := f))).
+    Local Definition proj0 : (dom g + dom f) -> (A + A) :=
+      sumf (dom_elt (f := g)) (dom_elt (f := f)).
 
-    Local Definition proj1 : option (dom (compose g f)) -> option A :=
-      option_map (dom_elt (f := compose g f)).
+    Local Definition proj1 : (dom (compose g f)) -> A :=
+      dom_elt (f := compose g f).
 
-    Local Definition top_map (x : option (dom g + dom f))
+    Local Definition top_map (dd : (dom g + dom f))
       : option (dom (compose g f)) :=
-      match x with
-      | None => None
-      | Some dd => match dd with
-                   | inl dg => map_a (dom_elt dg)
-                   | inr df => map_a (dom_elt df)
-                   end
-      end.
+      map_a (match dd with
+             | inl dg => dom_elt dg
+             | inr df => dom_elt df
+             end).
 
-    Local Definition bot_map (x : option (A + A)) : option A :=
-      match x with
-      | None => None
-      | Some aa => match aa with
-                   | inl a => proj1 (map_a a)
-                   | inr a => proj1 (map_a a)
-                   end
-      end.
+    Local Definition bot_map (aa : (A + A)) : option A :=
+      option_map proj1 (map_a (match aa with
+                               | inl a => a
+                               | inr a => a
+                               end)).
 
-    Local Lemma natH : forall x, proj1 (top_map x) = bot_map (proj0 x).
+    Local Lemma natH
+      : forall dd, option_map proj1 (top_map dd) = bot_map (proj0 dd).
     Proof.
-      intro x. destruct x as [ dd | ].
-      - destruct dd; reflexivity.
-      - reflexivity.
+      intro dd; destruct dd; reflexivity.
     Qed.
 
     (** Now, let's prove that [proj0] is indeed [FiniteProj]. It turns
       out that we can do this with a bare proof term: all the work was
       done in the [SymbComp.FinSet] script. *)
 
-    Local Definition fin_proj0 : FiniteProj proj0 :=
-      finite_option_intro (finite_sum finG finF).
+    Local Definition fin_proj0 : FiniteProj proj0 := finite_sum finG finF.
 
     (** To apply the [finite_surj] lemma, we'll need to prove that the
       bottom map has the required surjectivity. This is just a finicky
       case analysis. *)
 
-    Local Lemma surjH : SurjectiveProj bot_map proj0 proj1.
+    Local Lemma surjH
+      : forall d' : dom (compose g f),
+        exists dd : dom g + dom f,
+          bot_map (proj0 dd) = Some (proj1 d').
     Proof.
-      unfold SurjectiveProj.
-      intro x; destruct x as [ dgf | ].
-      - destruct dgf as [ a in_dom_a ].
-        case (decA (f a) a) as [ feqH | fneH ].
-        + case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
-          * contradiction in_dom_a; clear in_dom_a.
-            rewrite <- feqH at 2; clear feqH.
-            unfold compose. exact gfeqH.
-          * rewrite feqH in gfneH; rename gfneH into gneH.
-            exists (Some (inl (exist _ a gneH))).
-            simpl. unfold map_a.
-            destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-            -- rewrite feqH in gfeqH. contradiction.
-            -- reflexivity.
-        + exists (Some (inr (exist _ a fneH))).
-          simpl. unfold map_a.
+      intro d'. destruct d' as [ a in_dom_a ].
+      case (decA (f a) a) as [ feqH | fneH ].
+      - case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
+        + contradiction in_dom_a; clear in_dom_a.
+          rewrite <- feqH at 2; clear feqH.
+          unfold compose. exact gfeqH.
+        + rewrite feqH in gfneH; rename gfneH into gneH.
+          exists (inl (exist _ a gneH)).
+          simpl. unfold bot_map, map_a.
           destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-          * contradiction.
+          * rewrite feqH in gfeqH. contradiction.
           * reflexivity.
-      - exists None.
-        reflexivity.
+      - exists (inr (exist _ a fneH)).
+        simpl. unfold bot_map, map_a.
+        destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
+        + contradiction.
+        + reflexivity.
     Qed.
 
     (** We finally have all the bits we need to prove the theorem we
@@ -185,8 +176,7 @@ Module FinEndoComp.
     Lemma compose_fin_endo : fin_endo (compose g f).
     Proof.
       unfold fin_endo.
-      apply finite_option_elim.
-      apply (finite_surj top_map fin_proj0 natH surjH).
+      apply (finite_surj_option proj1 top_map bot_map fin_proj0 natH surjH).
     Qed.
   End FinEndoComp.
 End FinEndoComp.
