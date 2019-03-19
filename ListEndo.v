@@ -72,22 +72,23 @@ Section decA.
     Variable f : A -> A.
     Variable p : A * A.
 
-    Local Definition map_a (a : A) : option (dom (upd_map p f)) :=
+    Local Definition map_a (a : A) : option (mod_dom id (upd_map p f)) :=
       match decA (upd_map p f a) a with
       | left eqH => None
       | right neqH => Some (exist _ a neqH)
       end.
 
-    Local Definition proj0 (x : dom f + unit) : A :=
+    Local Definition proj0 (x : mod_dom id f + unit) : A :=
       match x with
-      | inl x => dom_elt x
+      | inl x => md_elt x
       | inr tt => fst p
       end.
 
-    Local Definition proj1 : dom (upd_map p f) -> A :=
-      dom_elt (f := upd_map p f).
+    Local Definition proj1 : mod_dom id (upd_map p f) -> A :=
+      md_elt (f := upd_map p f).
 
-    Local Definition top_map (x : dom f + unit) : option (dom (upd_map p f)) :=
+    Local Definition top_map (x : mod_dom id f + unit)
+      : option (mod_dom id (upd_map p f)) :=
       match x with
       | inl (exist _ a H) => map_a a
       | inr tt => map_a (fst p)
@@ -101,16 +102,13 @@ Section decA.
       destruct 1 as [ l H ].
       exists (cons (inr tt) (map inl l)).
       unfold FullProj. intro x.
-      destruct x.
+      destruct x as [ d | ].
       - apply in_proj_cons.
         unfold proj0 at 2.
         unfold FullProj in H. specialize (H d).
         revert H.
-        apply (in_proj_map_id_g inl (dom_elt (f:=f)) proj0
-                                (dom_elt d) l); reflexivity.
-      - apply in_proj_eq.
-        destruct u.
-        reflexivity.
+        apply in_proj_map_id_g; reflexivity.
+      - apply in_proj_eq; destruct u; reflexivity.
     Qed.
 
     Local Lemma natH x : option_map proj1 (top_map x) = bot_map (proj0 x).
@@ -130,10 +128,11 @@ Section decA.
               | _ => contradiction
               end).
 
-    Local Lemma surjH (d' : dom (upd_map p f))
-      : exists a : dom f + unit, bot_map (proj0 a) = Some (proj1 d').
+    Local Lemma surjH (d' : mod_dom id (upd_map p f))
+      : exists a : mod_dom id f + unit,
+        bot_map (proj0 a) = Some (proj1 d').
     Proof.
-      destruct d' as [ a H ]; unfold in_dom in H. simpl.
+      destruct d' as [ a H ]; unfold mod_elt in H; simpl.
       case (decA (fst p) a).
       - intro fstH.
         exists (inr tt).
@@ -145,8 +144,8 @@ Section decA.
         assert (not_H_a: a <> fst p); auto.
         assert (IH: upd_map p f a = f a);
           unfold upd_map; dec_a_equal.
-        assert (aH: in_dom f a);
-          unfold in_dom in H; unfold in_dom. rewrite <- IH; auto.
+        assert (aH: mod_elt id f a);
+          unfold mod_elt in H; unfold mod_elt. rewrite <- IH; auto.
         exists (inl (exist _ a aH)).
         unfold bot_map; dec_a_equal.
     Qed.
@@ -228,7 +227,7 @@ Section decA.
       unfold fin_endo in finH.
       unfold FiniteProj in finH.
       destruct finH as [ l fullH ]; clear finH.
-      set (ul := map (dom_elt (f := f)) l).
+      set (ul := map (md_elt (f := f)) l).
       exists (list_graph ul).
       intro a.
       unfold FullProj in fullH.
@@ -241,7 +240,7 @@ Section decA.
           simpl in inProjH.
           unfold ul. rewrite map_cons.
           rewrite list_endo_list_graph_cons.
-          destruct (decA (dom_elt d) a) as [ deqH | dneH ].
+          destruct (decA (md_elt d) a) as [ deqH | dneH ].
           * rewrite deqH, upd_map_at; exact eq_refl.
           * simpl in IH.
             destruct inProjH; try contradiction.

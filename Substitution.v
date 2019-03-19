@@ -17,7 +17,7 @@ Section Substitution.
   Qed.
 
   (* The identity is always a substitution *)
-  Definition id_sub : sub := (exist _ id (fin_endo_id A)).
+  Definition id_sub : sub := (exist _ id fin_endo_id).
 
   (* Substitutions are closed under composition *)
   Definition comp_sub (g f : sub) : sub :=

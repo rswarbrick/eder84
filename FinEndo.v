@@ -2,10 +2,18 @@
     endomorphisms_. That is, maps on a set that fix all but finitely
     many elements.
 
-    We start by defining these maps and then prove basic properties,
-    like the fact that the set of these maps is closed under
-    composition.
- *)
+    We actually start by defining a more general type of map, called a
+    [fin_mod]. This is based on some map [f : A -> B] but differs at
+    finitely many points. When [f] is the identity on [A], we get the
+    [fin_endo] case.
+
+    One use case for [fin_mod] is when you have a smaller type
+    injecting into a bigger type. In classical maths, you might say
+    that [f : A -> B] is an endomorphism because it happens to take
+    values in the image of [A]. Here, we can talk about it being a
+    modification of the injection [A -> B].
+
+*)
 
 Require Import Lists.List.
 Require Import Logic.FinFun.
@@ -19,45 +27,54 @@ Set Implicit Arguments.
 
 (** * Basic definitions
 
-    We start by fixing an underlying set, [A], and a map [f : A -> A].
-    A finite endomorphism is a map from a set to itself such that
-    only finitely many elements are not equal to their image. We
-    define this with the help of the [SymbComp.FinSet] library's
-    [FiniteProj] predicate.
+    We start by fixing a underlying sets, [A] and [B], and a base map
+    [i : A -> B]. This is the map that is to be modified. Then we
+    define a finite modification ([fin_mod]) to be a map [f : A -> B]
+    where only finitely many elements are mapped differently by [f]
+    and [i]. We define this with the help of the [SymbComp.FinSet]
+    library's [FiniteProj] predicate.
+
 *)
 
-Section FinEndo.
-  Variable A : Type.
-  Variable f : A -> A.
+Section FinMod.
+  Variable A B : Type.
+  Variable i : A -> B.
 
-  (** The [dom] type describes variables that are not fixed by [f].
-      The universe of this type is the _domain_ of f (in the the
-      terminology of Eder's paper). We can encode this as a sigma
-      type, but we name the projection map (partly because it helps
-      the type system when we want to define [fin_endo]).
-   *)
+  Definition mod_elt f (a : A) := f a <> i a.
+  Definition mod_dom f := sig (mod_elt f).
+  Definition md_elt f : mod_dom f -> A := @proj1_sig A (mod_elt f).
+  Definition fin_mod f : Prop := FiniteProj (@md_elt f).
 
-  Definition in_dom (a : A) := f a <> a.
-  Definition dom := sig in_dom.
-  Definition dom_elt : dom -> A := @proj1_sig A in_dom.
-  Definition fin_endo : Prop := FiniteProj dom_elt.
-End FinEndo.
+  (** As you would expect, [i] is a [fin_mod]. Indeed, its
+      modification domain is empty. *)
+  Lemma fin_mod_i : fin_mod i.
+  Proof.
+    unfold fin_mod, FiniteProj.
+    exists nil.
+    unfold FullProj.
+    intro a. destruct a as [ a H ].
+    unfold mod_elt in H.
+    contradiction.
+  Qed.
+End FinMod.
 
-(* The identity map is a FinEndo. In fact, it has an empty domain
-   (so the empty list is full for it) even before projection. *)
+(** * Finite endomorphisms
 
-Lemma fin_endo_id A : fin_endo (@id A).
+    A special case of a [fin_mod] is when [B = A]. Then we call a
+    [fin_mod] of the identity map [fin_endo].
+*)
+
+Definition fin_endo {A : Type} (f : A -> A) : Prop := fin_mod id f.
+
+(** The identity map is a FinEndo (since it's [i]) *)
+
+Lemma fin_endo_id {A : Type} : @fin_endo A id.
 Proof.
-  unfold fin_endo, FiniteProj.
-  exists nil.
-  unfold FullProj.
-  intro a.
-  unfold dom, in_dom, id in a.
-  destruct a as [x H].
-  contradiction (H (eq_refl)).
+  unfold fin_endo.
+  apply fin_mod_i.
 Qed.
 
-(** * Composition
+(** ** Composition
 
     We'd like to show that the composition of two [fin_endo] maps is
     itself [fin_endo]. In classical maths, this is pretty easy. The
@@ -104,23 +121,23 @@ Module FinEndoComp.
     (** Firstly, we define the four maps in the square and show that it
       commutes. *)
 
-    Local Definition map_a (a : A) : option (dom (compose g f)) :=
-      match decA (g (f a)) a with
+    Local Definition map_a (a : A) : option (mod_dom id (compose g f)) :=
+      match decA (g (f a)) (id a) with
       | left _ => None
       | right neH => Some (exist _ a (fun eqH => neH eqH))
       end.
 
-    Local Definition proj0 : (dom g + dom f) -> (A + A) :=
-      sumf (dom_elt (f := g)) (dom_elt (f := f)).
+    Local Definition proj0 : (mod_dom id g + mod_dom id f) -> (A + A) :=
+      sumf (md_elt (f := g)) (md_elt (f := f)).
 
-    Local Definition proj1 : (dom (compose g f)) -> A :=
-      dom_elt (f := compose g f).
+    Local Definition proj1 : (mod_dom id (compose g f)) -> A :=
+      md_elt (f := compose g f).
 
-    Local Definition top_map (dd : (dom g + dom f))
-      : option (dom (compose g f)) :=
+    Local Definition top_map (dd : (mod_dom id g + mod_dom id f))
+      : option (mod_dom id (compose g f)) :=
       map_a (match dd with
-             | inl dg => dom_elt dg
-             | inr df => dom_elt df
+             | inl dg => md_elt dg
+             | inr df => md_elt df
              end).
 
     Local Definition bot_map (aa : (A + A)) : option A :=
@@ -145,28 +162,30 @@ Module FinEndoComp.
       bottom map has the required surjectivity. This is just a finicky
       case analysis. *)
 
+    Ltac use_decA :=
+      simpl; unfold bot_map, map_a;
+      match goal with
+      | [ |- context [decA ?a ?a'] ] => case (decA a a')
+      | _ => contradiction
+      | _ => reflexivity
+      | _ => simpl
+      end.
+
     Local Lemma surjH
-      : forall d' : dom (compose g f),
-        exists dd : dom g + dom f,
+      : forall d' : mod_dom id (compose g f),
+        exists dd : mod_dom id g + mod_dom id f,
           bot_map (proj0 dd) = Some (proj1 d').
     Proof.
       intro d'. destruct d' as [ a in_dom_a ].
       case (decA (f a) a) as [ feqH | fneH ].
       - case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
         + contradiction in_dom_a; clear in_dom_a.
-          rewrite <- feqH at 2; clear feqH.
-          unfold compose. exact gfeqH.
+          rewrite <- feqH at 2; apply gfeqH.
         + rewrite feqH in gfneH; rename gfneH into gneH.
           exists (inl (exist _ a gneH)).
-          simpl. unfold bot_map, map_a.
-          destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-          * rewrite feqH in gfeqH. contradiction.
-          * reflexivity.
+          repeat use_decA.
       - exists (inr (exist _ a fneH)).
-        simpl. unfold bot_map, map_a.
-        destruct (decA (g (f a)) a) as [ gfeqH | gfneH ].
-        + contradiction.
-        + reflexivity.
+        repeat use_decA.
     Qed.
 
     (** We finally have all the bits we need to prove the theorem we
@@ -182,6 +201,7 @@ Module FinEndoComp.
 End FinEndoComp.
 Import FinEndoComp.
 Export FinEndoComp.
+
 (** * Restriction
 
    The domain of a finite endomorphism can be restricted, which means
@@ -214,22 +234,22 @@ Module Restrictions.
      *)
     Variable f : A -> A.
 
-    Local Definition proj0 : dom (restrict_map f) -> A :=
-      @dom_elt _ (restrict_map f).
+    Local Definition proj0 : mod_dom id (restrict_map f) -> A :=
+      @md_elt A A id (restrict_map f).
 
-    Local Definition proj1 : (dom f) -> A := @dom_elt _ f.
+    Local Definition proj1 : (mod_dom id f) -> A := @md_elt A A id f.
+
+    Ltac dec_in_spt a :=
+      destruct (dec_in_spt a); try tauto.
 
     Local Definition dom_proof a
-      : in_dom f a -> in_spt a -> in_dom (restrict_map f) a.
+      : mod_elt id f a -> in_spt a -> mod_elt id (restrict_map f) a.
     Proof.
-      intros domH sptH.
-      unfold in_dom, restrict_map.
-      case (dec_in_spt a).
-      - intro. unfold in_dom in domH. exact domH.
-      - intro H. contradiction (H sptH).
+      unfold mod_elt, restrict_map in *; dec_in_spt a.
     Qed.
 
-    Local Definition h (x : dom f) : option (dom (restrict_map f)) :=
+    Local Definition h (x : mod_dom id f)
+      : option (mod_dom id (restrict_map f)) :=
       let (a, domH) := x in
       match dec_in_spt a with
       | left sptH => Some (exist _ a (dom_proof domH sptH))
@@ -242,55 +262,40 @@ Module Restrictions.
     Local Lemma hk_in_spt a H
       : in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
     Proof.
-      intros; unfold h, k; destruct (dec_in_spt a).
-      - reflexivity.
-      - contradiction.
+      unfold h, k; dec_in_spt a.
     Qed.
 
     Local Lemma hk_no_spt a H
       : ~ in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
     Proof.
-      intros; unfold h, k; destruct (dec_in_spt a).
-      - contradiction.
-      - reflexivity.
+      unfold h, k; dec_in_spt a.
     Qed.
 
-    Local Lemma natH0 : forall x : dom f, option_map proj0 (h x) = k (proj1 x).
+    Local Lemma natH0
+      : forall x : mod_dom id f, option_map proj0 (h x) = k (proj1 x).
     Proof.
-      intro x.
-      case x as [ a H ].
-      destruct (dec_in_spt a) as [ sptH | nsptH ];
-        unfold proj1, dom_elt, proj1_sig.
-      - apply (hk_in_spt H sptH).
-      - apply (hk_no_spt H nsptH).
+      intro x. destruct x as [ a H ].
+      dec_in_spt a; unfold proj1, md_elt, proj1_sig.
+      - apply (hk_in_spt H); tauto.
+      - apply (hk_no_spt H); tauto.
     Qed.
 
-    Lemma in_dom_from_restrict a : in_dom (restrict_map f) a -> in_dom f a.
+    Lemma in_dom_from_restrict a : mod_elt id (restrict_map f) a -> mod_elt id f a.
     Proof.
-      unfold in_dom, restrict_map in *.
-      destruct (dec_in_spt a); auto.
+      unfold mod_elt, restrict_map in *; dec_in_spt a.
     Qed.
 
-    Definition restrict_dom_inject (x : dom (restrict_map f)) : dom f :=
+    Definition restrict_dom_inject (x : mod_dom id (restrict_map f))
+      : mod_dom id f :=
       let (a, domH) := x in exist _ a (in_dom_from_restrict domH).
 
     Lemma restrict_preserves_fin_endo
       : fin_endo f -> fin_endo (restrict_map f).
     Proof.
       unfold fin_endo.
-      apply (@finite_left_inverse
-               (dom (restrict_map f)) (dom f)
-               h A A k proj0 proj1 natH0
-               restrict_dom_inject id).
-      - intro x. destruct x as [ a H ].
-        reflexivity.
-      - intro x. destruct x as [ a H ].
-        simpl; unfold k, id.
-        unfold in_dom, restrict_map in H.
-        revert H.
-        case (dec_in_spt a).
-        + reflexivity.
-        + contradiction.
+      apply (finite_left_inverse _ _ _ natH0 restrict_dom_inject id);
+        intro x; destruct x as [ a H ]; try tauto.
+      simpl; unfold k, id; unfold mod_elt, restrict_map in H; dec_in_spt a.
     Qed.
   End Restrictions.
 End Restrictions.
