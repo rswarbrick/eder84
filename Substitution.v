@@ -1,5 +1,5 @@
 Require Import Lists.List.
-Require Import SymbComp.FinEndo.
+Require Import SymbComp.FinMod.
 Require Import Program.Basics.
 
 Set Implicit Arguments.

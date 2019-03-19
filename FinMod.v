@@ -3,9 +3,9 @@
     many elements.
 
     We actually start by defining a more general type of map, called a
-    [fin_mod]. This is based on some map [f : A -> B] but differs at
-    finitely many points. When [f] is the identity on [A], we get the
-    [fin_endo] case.
+    [fin_mod] ("finite modification"). This is based on some map [f :
+    A -> B] but differs at finitely many points. When [f] is the
+    identity on [A], we get the [fin_endo] case.
 
     One use case for [fin_mod] is when you have a smaller type
     injecting into a bigger type. In classical maths, you might say

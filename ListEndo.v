@@ -1,11 +1,11 @@
-(** A finite endomorphism, as defined in the [SymbComp.FinEndo]
+(** A finite endomorphism, as defined in the [SymbComp.FinMod]
     library, is exactly the same thing as an endomorphism that can be
     described by a list of successive updates ("send [a] to [b]")
     applied to the identity map. In this theory, we prove this fact.
 *)
 
 Require Import Lists.List.
-Require Import SymbComp.FinEndo.
+Require Import SymbComp.FinMod.
 Require Import SymbComp.FinSet.
 Require Import Program.Basics.
 
@@ -153,7 +153,7 @@ Section decA.
     (**
 
         We can finally prove the lemma that we wanted. Note that we
-        use the [finite_surj_option] lemma from the FinEndo library.
+        use the [finite_surj_option] lemma from the FinMod library.
         This avoids some of the faffing around with option types that
         we'd need otherwise.
 

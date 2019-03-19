@@ -1,6 +1,6 @@
 Substitution.v
 ListEndo.v
-FinEndo.v
+FinMod.v
 FinSet.v
 
 -Q . SymbComp
