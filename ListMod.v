@@ -56,39 +56,44 @@ Section decA.
 
     (**
 
-        At this point, we fix some endomorphism [f : A -> A] and want
-        to prove that updating it with a pair doesn't stop it being
-        finite. To prove this, we try to define a map from [dom f +
-        unit] to [dom (upd_map p f)] which will induce the surjection
-        in the underlying sets. The idea is that the image of [tt] in
-        [unit] is [fst p], together with a proof that it's in the
-        domain. Of course, it might be that [fst p = snd p], in which
-        case it's not in the domain. To deal with this, we actually
-        map to [option (dom (upd_map p f))] and allow ourselves to map
-        to [None] in that case.
+        At this point, we fix some map [f : A -> B] which is a finite
+        modification of some other map [i : A -> B]. We want to prove
+        that updating it with a pair doesn't stop it being a finite
+        mo. To do so, we try to define a map from [mod_dom i f + unit] to
+        [mod_dom i (upd_map p f)] which will induce the surjection in the
+        underlying sets. The idea is that the image of [tt] in [unit]
+        is [fst p], together with a proof that it's in the domain. Of
+        course, it might be that [fst p = snd p], in which case it's
+        not in the domain. To deal with this, we actually map to
+        [option (mod_dom i (upd_map p f))] and allow ourselves to map to
+        [None] in that case.
 
      *)
 
-    Variable f : A -> A.
-    Variable p : A * A.
+    Variable B : Type.
+    Variable f : A -> B.
+    Variable i : A -> B.
+    Variable p : A * B.
 
-    Local Definition map_a (a : A) : option (mod_dom id (upd_map p f)) :=
-      match decA (upd_map p f a) a with
+    Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+
+    Local Definition map_a (a : A) : option (mod_dom i (upd_map p f)) :=
+      match decB (upd_map p f a) (i a) with
       | left eqH => None
       | right neqH => Some (exist _ a neqH)
       end.
 
-    Local Definition proj0 (x : mod_dom id f + unit) : A :=
+    Local Definition proj0 (x : mod_dom i f + unit) : A :=
       match x with
       | inl x => md_elt x
       | inr tt => fst p
       end.
 
-    Local Definition proj1 : mod_dom id (upd_map p f) -> A :=
+    Local Definition proj1 : mod_dom i (upd_map p f) -> A :=
       md_elt (f := upd_map p f).
 
-    Local Definition top_map (x : mod_dom id f + unit)
-      : option (mod_dom id (upd_map p f)) :=
+    Local Definition top_map (x : mod_dom i f + unit)
+      : option (mod_dom i (upd_map p f)) :=
       match x with
       | inl (exist _ a H) => map_a a
       | inr tt => map_a (fst p)
@@ -96,7 +101,7 @@ Section decA.
 
     Local Definition bot_map (a : A) : option A := option_map proj1 (map_a a).
 
-    Local Lemma finite_proj0 : fin_endo f -> FiniteProj proj0.
+    Local Lemma finite_proj0 : fin_mod i f -> FiniteProj proj0.
     Proof.
       unfold FiniteProj.
       destruct 1 as [ l H ].
@@ -119,17 +124,19 @@ Section decA.
       - destruct u; auto.
     Qed.
 
-    Ltac dec_a_equal :=
+    Ltac dec_equal :=
       unfold map_a;
       repeat (match goal with
               | [ |- context [decA ?X ?Y]] =>
                 case (decA X Y)
+              | [ |- context [decB ?X ?Y]] =>
+                case (decB X Y)
               | _ => reflexivity
               | _ => contradiction
               end).
 
-    Local Lemma surjH (d' : mod_dom id (upd_map p f))
-      : exists a : mod_dom id f + unit,
+    Local Lemma surjH (d' : mod_dom i (upd_map p f))
+      : exists a : mod_dom i f + unit,
         bot_map (proj0 a) = Some (proj1 d').
     Proof.
       destruct d' as [ a H ]; unfold mod_elt in H; simpl.
@@ -137,17 +144,17 @@ Section decA.
       - intro fstH.
         exists (inr tt).
         simpl. unfold bot_map, map_a.
-        case (decA (upd_map p f (fst p)) (fst p)).
+        case (decB (upd_map p f (fst p)) (i (fst p))).
         + rewrite <- fstH in H. contradiction.
         + simpl. rewrite fstH. tauto.
       - intro rstH.
         assert (not_H_a: a <> fst p); auto.
         assert (IH: upd_map p f a = f a);
-          unfold upd_map; dec_a_equal.
-        assert (aH: mod_elt id f a);
+          unfold upd_map; dec_equal.
+        assert (aH: mod_elt i f a);
           unfold mod_elt in H; unfold mod_elt. rewrite <- IH; auto.
         exists (inl (exist _ a aH)).
-        unfold bot_map; dec_a_equal.
+        unfold bot_map; dec_equal.
     Qed.
 
     (**
@@ -159,7 +166,7 @@ Section decA.
 
      *)
     Lemma fin_endo_upd_map
-      : fin_endo f -> fin_endo (upd_map p f).
+      : fin_mod i f -> fin_mod i (upd_map p f).
     Proof.
       intro feH.
       unfold fin_endo.
@@ -193,8 +200,7 @@ Section decA.
     induction l as [ | pr l IH ].
     - simpl. apply fin_endo_id.
     - unfold list_endo. fold list_endo.
-      apply fin_endo_upd_map.
-      exact IH.
+      apply (fin_endo_upd_map); tauto.
   Qed.
 
   Section FinIsList.
