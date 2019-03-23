@@ -165,7 +165,7 @@ Section decA.
         we'd need otherwise.
 
      *)
-    Lemma fin_endo_upd_map
+    Lemma fin_mod_upd_map
       : fin_mod i f -> fin_mod i (upd_map p f).
     Proof.
       intro feH.
@@ -176,83 +176,90 @@ Section decA.
     Qed.
   End UpdMap.
 
-  (** * List endomorphisms
+  (** * List maps
 
       With the results of the previous section, it now just takes a
-      quick induction to define the endomorphism described by a list
-      of pairs and to see that it has finite domain.
+      quick induction to define the function described by a list of
+      pairs and to see that it is a finite modification of the
+      underlying map.
    *)
+  Section ListMap.
+    Variable B : Type.
+    Variable i : A -> B.
+    Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
 
-  Fixpoint list_endo (l : list (A * A)) : A -> A :=
-    match l with
-    | nil => id
-    | cons p l => upd_map p (list_endo l)
-    end.
+    Fixpoint list_map (l : list (A * B)) : A -> B :=
+      match l with
+      | nil => i
+      | cons p l => upd_map p (list_map l)
+      end.
 
-  Lemma list_endo_nil : list_endo nil = id.
-  Proof. reflexivity. Qed.
+    Lemma list_map_nil : list_map nil = i.
+    Proof. reflexivity. Qed.
 
-  Lemma list_endo_cons p l : list_endo (cons p l) = upd_map p (list_endo l).
-  Proof. reflexivity. Qed.
+    Lemma list_map_cons p l : list_map (cons p l) = upd_map p (list_map l).
+    Proof. reflexivity. Qed.
 
-  Lemma fin_endo_list_endo l : fin_endo (list_endo l).
-  Proof.
-    induction l as [ | pr l IH ].
-    - simpl. apply fin_endo_id.
-    - unfold list_endo. fold list_endo.
-      apply (fin_endo_upd_map); tauto.
-  Qed.
-
-  Section FinIsList.
-    Variable f : A -> A.
-    Hypothesis finH : fin_endo f.
-
-    Local Definition list_graph (l : list A) : list (A * A) :=
-      map (fun a => (a, f a)) l.
-
-    Local Lemma list_endo_list_graph_cons a l a'
-      : list_endo (list_graph (a :: l)) a' = upd_map (a, f a) (list_endo (list_graph l)) a'.
+    Lemma fin_mod_list_map l : fin_mod i (list_map l).
     Proof.
-      reflexivity.
+      induction l as [ | pr l IH ].
+      - simpl. apply fin_mod_i.
+      - unfold list_map. fold list_map.
+        apply (fin_mod_upd_map); tauto.
     Qed.
 
-    Local Lemma ev_list_graph_off_dom l a
-      : f a = a -> list_endo (list_graph l) a = a.
-    Proof.
-      intro eqH.
-      induction l as [ | a' l IH ]; auto.
-      rewrite list_endo_list_graph_cons.
-      apply upd_map_elim.
-      - intro aH; rewrite <- aH, eqH. exact eq_refl.
-      - intro. exact IH.
-    Qed.
+    Section FinIsList.
+      Variable f : A -> B.
+      Hypothesis finH : fin_mod i f.
 
-    Lemma fin_endo_is_list_endo
-      : exists l, forall a, f a = list_endo l a.
-    Proof.
-      unfold fin_endo in finH.
-      unfold FiniteProj in finH.
-      destruct finH as [ l fullH ]; clear finH.
-      set (ul := map (md_elt (f := f)) l).
-      exists (list_graph ul).
-      intro a.
-      unfold FullProj in fullH.
-      - case (decA (f a) a).
-        + intro eqA; rewrite (ev_list_graph_off_dom ul eqA); tauto.
-        + intro neH.
-          specialize (fullH (exist _ a neH)).
-          rename fullH into inProjH.
-          induction l as [ | d l IH ]; try contradiction.
-          simpl in inProjH.
-          unfold ul. rewrite map_cons.
-          rewrite list_endo_list_graph_cons.
-          destruct (decA (md_elt d) a) as [ deqH | dneH ].
-          * rewrite deqH, upd_map_at; exact eq_refl.
-          * simpl in IH.
-            destruct inProjH; try contradiction.
-            specialize (IH H); clear H.
-            rewrite (upd_map_not_at _ _ (not_eq_sym dneH)).
-            apply IH.
-    Qed.
-  End FinIsList.
+      Local Definition list_graph (l : list A) : list (A * B) :=
+        map (fun a => (a, f a)) l.
+
+      Local Lemma list_map_list_graph_cons a l a'
+        : list_map (list_graph (a :: l)) a' =
+          upd_map (a, f a) (list_map (list_graph l)) a'.
+      Proof.
+        reflexivity.
+      Qed.
+
+      Local Lemma ev_list_graph_off_dom l a
+        : f a = i a -> list_map (list_graph l) a = i a.
+      Proof.
+        intro eqH.
+        induction l as [ | a' l IH ]; auto.
+        rewrite list_map_list_graph_cons.
+        apply upd_map_elim.
+        - intro aH; rewrite <- aH, eqH. exact eq_refl.
+        - intro. exact IH.
+      Qed.
+
+      Lemma fin_mod_is_list_map
+        : exists l, forall a, f a = list_map l a.
+      Proof.
+        unfold fin_endo in finH.
+        unfold FiniteProj in finH.
+        destruct finH as [ l fullH ]; clear finH.
+        set (ul := map (md_elt (f := f)) l).
+        exists (list_graph ul).
+        intro a.
+        unfold FullProj in fullH.
+        - case (decB (f a) (i a)).
+          + intro eqA; rewrite (ev_list_graph_off_dom ul eqA); tauto.
+          + intro neH.
+            specialize (fullH (exist _ a neH)).
+            rename fullH into inProjH.
+            induction l as [ | d l IH ]; try contradiction.
+            simpl in inProjH.
+            unfold ul. rewrite map_cons.
+            rewrite list_map_list_graph_cons.
+            destruct (decA (md_elt d) a) as [ deqH | dneH ].
+            * rewrite deqH, upd_map_at; exact eq_refl.
+            * simpl in IH.
+              destruct inProjH; try contradiction.
+              specialize (IH H); clear H.
+              rewrite (upd_map_not_at _ _ (not_eq_sym dneH)).
+              apply IH.
+      Qed.
+    End FinIsList.
+  End ListMap.
 End decA.
