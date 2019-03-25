@@ -3,6 +3,7 @@ Require Import Logic.Eqdep_dec.
 Require Import PeanoNat.
 Require Vectors.Fin.
 Require Vectors.VectorDef.
+Require Import Program.Basics.
 
 Require Import SymbComp.VecUtils.
 Require Import SymbComp.FinMod.
@@ -144,12 +145,52 @@ Section Term.
 
   Section comp_subst.
     Variables sigma tau : V -> Term.
+    Variable sl tl : list (V * Term).
+
     Hypothesis decV : forall x y : V, {x = y} + {x <> y}.
     Hypothesis decF : forall x y : F, {x = y} + {x <> y}.
 
-    (* TODO! *)
+    Hypothesis sH : forall v : V, sigma v = list_map decV varTerm sl v.
+    Hypothesis tH : forall v : V, tau v = list_map decV varTerm tl v.
 
-    (*Check (@fin_mod_is_list_map V decV Term varTerm
-                                (decTerm decV decF)).*)
+    (* A list inducing the correct correct composed map ([compose
+       sigma tau]) is given by first mapping all the variables to
+       where tau would send them and then applying the induced map
+       from sigma to the resulting term.
+
+       Variables that weren't moved by tau get mapped by sigma, which
+       we can express by shoving them to the end of the list.
+     *)
+    Local Definition stl : list (V * Term) :=
+      app (map (fun p => (fst p, subst_endo sigma (snd p))) tl)
+          sl.
+
+    Lemma stl_map_v (v : V)
+      : list_map decV varTerm stl v =
+        compose (subst_endo sigma) (subst_endo tau) (varTerm v).
+    Proof.
+      specialize (tH v).
+      unfold compose, subst_endo at 2, stl.
+      set (pmap := (fun p : V * Term => (fst p, subst_endo sigma (snd p)))).
+      revert tau tH.
+      induction tl as [ | p tl' IH ].
+      - intros; rewrite tH; clear tH; simpl; auto.
+      - intros tau tH.
+        clear tl; rename tl' into tl.
+        rewrite (map_cons pmap p tl), <- app_comm_cons.
+        destruct p as [ v' sv' ].
+        destruct (decV v' v) as [ veqH | vneH ].
+        + rewrite veqH in *; clear v' veqH.
+          simpl in tH; rewrite upd_map_at in tH.
+          unfold pmap; simpl; rewrite upd_map_at.
+          rewrite tH. tauto.
+        + unfold pmap at 1; simpl.
+          rewrite (upd_map_not_at decV _ _ (not_eq_sym vneH)).
+          simpl in tH.
+          rewrite (upd_map_not_at decV _ _ (not_eq_sym vneH)) in tH.
+          apply IH.
+          apply tH.
+    Qed.
+
   End comp_subst.
 End Term.
