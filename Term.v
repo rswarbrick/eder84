@@ -1,43 +1,14 @@
 Require Import Lists.List.
+Require Import Logic.Eqdep_dec.
+Require Import PeanoNat.
 Require Vectors.Fin.
 Require Vectors.VectorDef.
 
+Require Import SymbComp.VecUtils.
 Require Import SymbComp.FinMod.
+Require Import SymbComp.ListMod.
 
-Definition fin := Fin.t.
 Definition vec := VectorDef.t.
-
-Section vec_all.
-  Variable A : Type.
-  Variable P : A -> Prop.
-
-  Fixpoint vec_all {n} (v : vec A n) :=
-    match v with
-    | VectorDef.nil _ => True
-    | VectorDef.cons _ a _ v' => P a /\ vec_all v'
-    end.
-
-  Definition vec_all_nil : vec_all (VectorDef.nil _) := I.
-
-  Lemma vec_all_singleton a
-    : P a -> vec_all (VectorDef.cons _ a _ (VectorDef.nil _)).
-  Proof.
-    unfold vec_all. auto.
-  Qed.
-
-  Lemma vec_all_cons a {n} (v : vec A n)
-    : P a -> vec_all v -> vec_all (VectorDef.cons _ a _ v).
-  Proof.
-    intros aH vH.
-    unfold vec_all; fold (@vec_all n).
-    exact (conj aH vH).
-  Qed.
-End vec_all.
-
-Arguments vec_all {A} P {n}.
-Arguments vec_all_nil {A} P.
-Arguments vec_all_singleton {A P a} aH.
-Arguments vec_all_cons {A P a n v} aH vH.
 
 Section Term.
   Variable V : Set.
@@ -64,6 +35,66 @@ Section Term.
                              (a f) ts)
       end.
   End Term_ind'.
+
+  Section Term_rect'.
+    Variable P : Term -> Type.
+    Variable Q : forall n, vec Term n -> Type.
+
+    Variable varH : forall v, P (varTerm v).
+    Variable funH : forall f, forall ts, Q _ ts -> P (funTerm f ts).
+    Variable qnilH : Q _ (VectorDef.nil _).
+    Variable qconsH : forall t n ts,
+        P t -> Q n ts -> Q _ (VectorDef.cons _ t _ ts).
+
+    Fixpoint Term_rect' (t : Term) : P t :=
+      match t with
+      | varTerm v => varH v
+      | funTerm f ts =>
+        funH f ts
+             (VectorDef.t_rect Term Q qnilH
+                               (fun t' n ts' =>
+                                  qconsH t' n ts' (Term_rect' t'))
+                               (a f) ts)
+      end.
+  End Term_rect'.
+
+  Lemma varTerm_ne_funTerm v f ts : varTerm v <> funTerm f ts.
+  Proof.
+    intros eqH. inversion eqH.
+  Qed.
+
+  Section DecTerm.
+    (* Equality in Term is decidable if it is in V and F *)
+    Hypothesis decV : forall x y : V, {x = y} + {x <> y}.
+    Hypothesis decF : forall x y : F, {x = y} + {x <> y}.
+
+    Fixpoint decTerm (x y : Term) : {x = y} + {x <> y}.
+      refine (match x, y with
+              | varTerm v, varTerm v' => _
+              | varTerm v, funTerm f ts => _
+              | funTerm f ts, varTerm v => _
+              | funTerm f ts, funTerm f' ts' => _
+              end
+             ).
+      - destruct (decV v v') as [ eqH | neH ].
+        + exact (left (f_equal varTerm eqH)).
+        + enough (H: varTerm v <> varTerm v');
+            try (exact (right H)).
+          injection; tauto.
+      - exact (right (varTerm_ne_funTerm v f ts)).
+      - exact (right (not_eq_sym (varTerm_ne_funTerm v f ts))).
+      - destruct (decF f f') as [ feqH | fneH ].
+        + revert ts'. rewrite <- feqH. clear feqH; intro ts'.
+          destruct (dec_vec Term decTerm ts ts') as [ tseqH | tsneH ].
+          * apply left. apply f_equal. exact tseqH.
+          * apply right. intro funH. inversion funH.
+            exact (tsneH (inj_pair2_eq_dec
+                            F decF (fun f => vec Term (a f)) f ts ts' H0)).
+        + enough (H: funTerm f ts <> funTerm f' ts');
+            try (exact (right H)).
+          injection; tauto.
+    Qed.
+  End DecTerm.
 
   (* Eder's paper talks about substitutions as if they are
      endomorphisms on Term, but he is only interested in the
@@ -109,5 +140,16 @@ Section Term.
 
   (* Composition is more of a faff. The substitution that induces the
      composition of two induced endomorphisms is actually easiest to
-     define by concatenating lists. TODO! *)
+     define by concatenating lists *)
+
+  Section comp_subst.
+    Variables sigma tau : V -> Term.
+    Hypothesis decV : forall x y : V, {x = y} + {x <> y}.
+    Hypothesis decF : forall x y : F, {x = y} + {x <> y}.
+
+    (* TODO! *)
+
+    (*Check (@fin_mod_is_list_map V decV Term varTerm
+                                (decTerm decV decF)).*)
+  End comp_subst.
 End Term.

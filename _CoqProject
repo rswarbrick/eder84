@@ -1,4 +1,5 @@
 Term.v
+VecUtils.v
 Substitution.v
 ListMod.v
 FinMod.v
