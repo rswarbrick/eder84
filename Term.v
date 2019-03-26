@@ -212,6 +212,22 @@ Section Term.
           apply IH.
           apply tH.
     Qed.
-
   End comp_subst.
+
+  Lemma fin_subst_comp sigma tau
+    : (forall x y : V, {x = y} + {x <> y}) ->
+      (forall x y : F, {x = y} + {x <> y}) ->
+      fin_subst sigma -> fin_subst tau ->
+      fin_subst (var_restriction (compose (subst_endo sigma) (subst_endo tau))).
+  Proof.
+    unfold fin_subst at 1 2.
+    intros decV decF fmS fmT.
+    set (decT := (decTerm decV decF)).
+    destruct (fin_mod_is_list_map decV decT fmS) as [ sl slH ].
+    destruct (fin_mod_is_list_map decV decT fmT) as [ tl tlH ].
+    unfold var_restriction.
+    apply (fin_mod_ex _ (stl_map_v sigma tau sl tl decV slH tlH)).
+    apply (fin_mod_list_map decV varTerm decT).
+  Qed.
+
 End Term.

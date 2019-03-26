@@ -56,6 +56,28 @@ Section FinMod.
     unfold mod_elt in H.
     contradiction.
   Qed.
+
+  Definition mod_dom_cast {f g} (H : forall a, f a = g a) (d : mod_dom f)
+    : mod_dom g := match d with
+                   | exist _ a H' =>
+                     exist _ a (eq_ind (f a) (fun b => b <> i a) H' _ (H a))
+                   end.
+
+  Lemma fin_mod_ex f g
+    : (forall a : A, f a = g a) -> fin_mod f -> fin_mod g.
+  Proof.
+    unfold fin_mod.
+    intros eqH finF.
+    apply (finite_surj (mod_dom_cast eqH) finF (g := id)).
+    - intro d; destruct d; tauto.
+    - unfold SurjectiveProj.
+      intro d'; destruct d' as [ a gaH ].
+      specialize (eqH a).
+      assert (faH : mod_elt f a);
+        try (unfold mod_elt in *; rewrite eqH; tauto).
+      exists (exist _ a faH).
+      tauto.
+  Qed.
 End FinMod.
 
 (** * Finite endomorphisms
