@@ -139,6 +139,27 @@ Section Term.
     apply fin_mod_i.
   Qed.
 
+  (* Let's prove that the composition of two induced endomorphisms is
+     itself induced. *)
+  Definition var_restriction (f : Term -> Term) (v : V) : Term :=
+    f (varTerm v).
+
+  Lemma comp_subst_is_subst (sigma tau : V -> Term) (t : Term)
+    : compose (subst_endo sigma) (subst_endo tau) t =
+      subst_endo (var_restriction
+                    (compose (subst_endo sigma) (subst_endo tau))) t.
+  Proof.
+    revert t; apply Term_ind'.
+    - intros; unfold compose, var_restriction; simpl; exact eq_refl.
+    - intros f ts IH.
+      unfold compose, subst_endo; fold subst_endo.
+      apply f_equal.
+      rewrite vec_map_map.
+      fold (compose (subst_endo sigma) (subst_endo tau)).
+      apply vec_map_equal.
+      exact IH.
+  Qed.
+
   (* Composition is more of a faff. The substitution that induces the
      composition of two induced endomorphisms is actually easiest to
      define by concatenating lists *)

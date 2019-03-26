@@ -90,3 +90,25 @@ Section dec_vec.
         intro consH. inversion consH. contradiction.
   Defined.
 End dec_vec.
+
+Lemma vec_map_map {A B C : Type} (f : A -> B) (g : B -> C) {n} (v : vec A n)
+  : VectorDef.map g (VectorDef.map f v) =
+    VectorDef.map (fun x : A => g (f x)) v.
+Proof.
+  induction v as [ | a n v IH ]; try tauto.
+  simpl.
+  apply f_equal.
+  apply IH.
+Qed.
+
+Lemma vec_map_equal {A B : Type} (f g : A -> B) {n} (v : vec A n)
+  : vec_all (fun t => f t = g t) v ->
+    VectorDef.map f v = VectorDef.map g v.
+Proof.
+  induction v as [ | a n v IH ]; try tauto.
+  unfold vec_all. fold (vec_all (fun t : A => f t = g t) v).
+  destruct 1 as [ eq1H eqnH ].
+  specialize (IH eqnH); clear eqnH.
+  simpl. rewrite eq1H, IH; exact eq_refl.
+Qed.
+
