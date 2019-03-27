@@ -164,7 +164,10 @@ Section Term.
      composition of two induced endomorphisms is actually easiest to
      define by concatenating lists *)
 
-  Section comp_subst.
+  Definition comp_subst (sigma tau : V -> Term) :=
+    compose (compose (subst_endo sigma) (subst_endo tau)) varTerm.
+
+  Section fin_comp_subst.
     Variables sigma tau : V -> Term.
     Variable sl tl : list (V * Term).
 
@@ -187,11 +190,10 @@ Section Term.
           sl.
 
     Lemma stl_map_v (v : V)
-      : list_map decV varTerm stl v =
-        compose (subst_endo sigma) (subst_endo tau) (varTerm v).
+      : list_map decV varTerm stl v = comp_subst sigma tau v.
     Proof.
       specialize (tH v).
-      unfold compose, subst_endo at 2, stl.
+      unfold comp_subst, compose, subst_endo at 2, stl.
       set (pmap := (fun p : V * Term => (fst p, subst_endo sigma (snd p)))).
       revert tau tH.
       induction tl as [ | p tl' IH ].
@@ -212,22 +214,51 @@ Section Term.
           apply IH.
           apply tH.
     Qed.
-  End comp_subst.
+  End fin_comp_subst.
 
   Lemma fin_subst_comp sigma tau
     : (forall x y : V, {x = y} + {x <> y}) ->
       (forall x y : F, {x = y} + {x <> y}) ->
-      fin_subst sigma -> fin_subst tau ->
-      fin_subst (var_restriction (compose (subst_endo sigma) (subst_endo tau))).
+      fin_subst sigma -> fin_subst tau -> fin_subst (comp_subst sigma tau).
   Proof.
     unfold fin_subst at 1 2.
     intros decV decF fmS fmT.
     set (decT := (decTerm decV decF)).
     destruct (fin_mod_is_list_map decV decT fmS) as [ sl slH ].
     destruct (fin_mod_is_list_map decV decT fmT) as [ tl tlH ].
-    unfold var_restriction.
+    unfold comp_subst, compose.
     apply (fin_mod_ex _ (stl_map_v sigma tau sl tl decV slH tlH)).
     apply (fin_mod_list_map decV varTerm decT).
+  Qed.
+
+  Lemma comp_subst_idl {sigma v} : comp_subst varTerm sigma v = sigma v.
+  Proof.
+    unfold comp_subst, compose.
+    unfold subst_endo at 2.
+    rewrite subst_endo_varTerm.
+    exact eq_refl.
+  Qed.
+
+  Lemma comp_subst_idr {sigma v} : comp_subst sigma varTerm v = sigma v.
+  Proof.
+    unfold comp_subst, compose, subst_endo.
+    exact eq_refl.
+  Qed.
+
+  Lemma comp_subst_assoc {s1 s2 s3 v}
+    : comp_subst s1 (comp_subst s2 s3) v = comp_subst (comp_subst s1 s2) s3 v.
+  Proof.
+    unfold comp_subst, compose; simpl.
+    generalize (s3 v); clear s3 v.
+    apply Term_ind'; try reflexivity.
+    intros f ts IH.
+    unfold subst_endo at 2; fold subst_endo.
+    unfold subst_endo at 1; fold subst_endo.
+    unfold subst_endo at 3; fold subst_endo.
+    apply f_equal.
+    rewrite vec_map_map.
+    apply vec_map_equal.
+    exact IH.
   Qed.
 
 End Term.
