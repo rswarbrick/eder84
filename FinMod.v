@@ -236,15 +236,16 @@ Export FinEndoComp.
  *)
 Module Restrictions.
   Section Restrictions.
-    Variable A : Type.
+    Variable A B : Type.
+    Variable i : A -> B.
     Variable in_spt : A -> Prop.
     Hypothesis dec_in_spt : forall a, {in_spt a} + {~ in_spt a}.
 
-    Definition restrict_map (f : A -> A) (a : A) : A :=
-      if dec_in_spt a then f a else a.
+    Definition restrict_map (f : A -> B) (a : A) : B :=
+      if dec_in_spt a then f a else i a.
 
-    (** We now have to show that the restriction of a [fin_endo] map is
-      itself [fin_endo]. A stronger result that we might wish to prove
+    (** We now have to show that the restriction of a [fin_mod] map is
+      itself [fin_mod]. A stronger result that we might wish to prove
       later is that if [in_support] has some finiteness properties
       then restricting _any_ map by it yields a [fin_endo] map. But
       that's not what we're doing here.
@@ -254,24 +255,24 @@ Module Restrictions.
       the proof stuff, the map is just [Some].
 
      *)
-    Variable f : A -> A.
+    Variable f : A -> B.
 
-    Local Definition proj0 : mod_dom id (restrict_map f) -> A :=
-      @md_elt A A id (restrict_map f).
+    Local Definition proj0 : mod_dom i (restrict_map f) -> A :=
+      @md_elt A B i (restrict_map f).
 
-    Local Definition proj1 : (mod_dom id f) -> A := @md_elt A A id f.
+    Local Definition proj1 : mod_dom i f -> A := @md_elt A B i f.
 
     Ltac dec_in_spt a :=
       destruct (dec_in_spt a); try tauto.
 
     Local Definition dom_proof a
-      : mod_elt id f a -> in_spt a -> mod_elt id (restrict_map f) a.
+      : mod_elt i f a -> in_spt a -> mod_elt i (restrict_map f) a.
     Proof.
       unfold mod_elt, restrict_map in *; dec_in_spt a.
     Qed.
 
-    Local Definition h (x : mod_dom id f)
-      : option (mod_dom id (restrict_map f)) :=
+    Local Definition h (x : mod_dom i f)
+      : option (mod_dom i (restrict_map f)) :=
       let (a, domH) := x in
       match dec_in_spt a with
       | left sptH => Some (exist _ a (dom_proof domH sptH))
@@ -294,7 +295,7 @@ Module Restrictions.
     Qed.
 
     Local Lemma natH0
-      : forall x : mod_dom id f, option_map proj0 (h x) = k (proj1 x).
+      : forall x : mod_dom i f, option_map proj0 (h x) = k (proj1 x).
     Proof.
       intro x. destruct x as [ a H ].
       dec_in_spt a; unfold proj1, md_elt, proj1_sig.
@@ -302,19 +303,18 @@ Module Restrictions.
       - apply (hk_no_spt H); tauto.
     Qed.
 
-    Lemma in_dom_from_restrict a : mod_elt id (restrict_map f) a -> mod_elt id f a.
+    Lemma in_dom_from_restrict a : mod_elt i (restrict_map f) a -> mod_elt i f a.
     Proof.
       unfold mod_elt, restrict_map in *; dec_in_spt a.
     Qed.
 
-    Definition restrict_dom_inject (x : mod_dom id (restrict_map f))
-      : mod_dom id f :=
+    Definition restrict_dom_inject (x : mod_dom i (restrict_map f))
+      : mod_dom i f :=
       let (a, domH) := x in exist _ a (in_dom_from_restrict domH).
 
     Lemma restrict_preserves_fin_endo
-      : fin_endo f -> fin_endo (restrict_map f).
+      : fin_mod i f -> fin_mod i (restrict_map f).
     Proof.
-      unfold fin_endo.
       apply (finite_left_inverse _ _ _ natH0 restrict_dom_inject id);
         intro x; destruct x as [ a H ]; try tauto.
       simpl; unfold k, id; unfold mod_elt, restrict_map in H; dec_in_spt a.
