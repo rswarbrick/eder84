@@ -261,4 +261,11 @@ Section Term.
     exact IH.
   Qed.
 
+  Lemma fin_subst_restrict {s P} (decP : forall v : V, {P v} + {~ P v})
+    : fin_subst s -> fin_subst (restrict_map varTerm P decP s).
+  Proof.
+    unfold fin_subst.
+    apply restrict_preserves_fin_mod.
+  Qed.
+
 End Term.

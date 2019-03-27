@@ -312,7 +312,7 @@ Module Restrictions.
       : mod_dom i f :=
       let (a, domH) := x in exist _ a (in_dom_from_restrict domH).
 
-    Lemma restrict_preserves_fin_endo
+    Lemma restrict_preserves_fin_mod
       : fin_mod i f -> fin_mod i (restrict_map f).
     Proof.
       apply (finite_left_inverse _ _ _ natH0 restrict_dom_inject id);
