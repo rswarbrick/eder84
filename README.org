@@ -1,0 +1,11 @@
+#+TITLE: Eder's 1984 paper "Properties of Substitutions and Unifications" in Coq
+
+This is my attempt to learn to do stuff in Coq and I thought it would
+be a good idea to follow an actual paper, trying to prove everything
+in it.
+
+To build, run =bootstrap.sh= in the repository, then =make=. Running
+=make all.pdf= will generate a LaTeX proof document. Some of the
+sections have some nice descriptions, in particular the stuff about
+finite sets. You'll need the Tikz commutative diagram package to
+render the LaTeX.
