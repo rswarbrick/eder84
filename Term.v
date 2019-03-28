@@ -12,8 +12,8 @@ Require Import SymbComp.ListMod.
 Definition vec := VectorDef.t.
 
 Section Term.
-  Variable V : Set.
-  Variable F : Set.
+  Variable V : Type.
+  Variable F : Type.
   Variable a : F -> nat.
 
   Inductive Term : Type :=
@@ -125,6 +125,19 @@ Section Term.
     unfold VectorDef.map; fold (@VectorDef.map Term _ (subst_endo varTerm)).
     rewrite IH, tH.
     exact eq_refl.
+  Qed.
+
+  Lemma subst_endo_ex {s s' t}
+    : (forall v, s v = s' v) -> subst_endo s t = subst_endo s' t.
+  Proof.
+    intro eqH.
+    revert t; apply Term_ind'.
+    - intro v; specialize (eqH v). tauto.
+    - intros f ts allH.
+      unfold subst_endo; fold subst_endo.
+      apply f_equal.
+      apply vec_map_equal.
+      exact allH.
   Qed.
 
   (* Eder is only interested in substitutions that map only finitely
@@ -268,4 +281,24 @@ Section Term.
     apply restrict_preserves_fin_mod.
   Qed.
 
+  Lemma comp_subst_ex1 {r r' s} (v : V)
+    : (forall v, r v = r' v) -> comp_subst r s v = comp_subst r' s v.
+  Proof.
+    intro eqH.
+    unfold comp_subst, compose.
+    rewrite (subst_endo_ex eqH).
+    tauto.
+  Qed.
+
+  Lemma comp_subst_ex2 {r s s'} (v : V)
+    : (forall v, s v = s' v) -> comp_subst r s v = comp_subst r s' v.
+  Proof.
+    intro eqH.
+    unfold comp_subst, compose.
+    rewrite (subst_endo_ex eqH).
+    tauto.
+  Qed.
+
 End Term.
+
+Arguments comp_subst {V F a} sigma tau.
