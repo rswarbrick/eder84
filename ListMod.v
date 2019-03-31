@@ -5,9 +5,12 @@
 *)
 
 Require Import Lists.List.
-Require Import SymbComp.FinMod.
-Require Import SymbComp.FinSet.
 Require Import Program.Basics.
+
+Require Import SymbComp.NatMap.
+Require Import SymbComp.FinSet.
+Require Import SymbComp.FinMod.
+
 
 Set Implicit Arguments.
 
@@ -101,6 +104,11 @@ Section decA.
 
     Local Definition bot_map (a : A) : option A := option_map proj1 (map_a a).
 
+    Local Lemma nat_left : is_nat_map (md_elt (f:=f)) proj0 (inl, id).
+    Proof.
+      unfold is_nat_map; intro a; auto.
+    Qed.
+
     Local Lemma finite_proj0 : fin_mod i f -> FiniteProj proj0.
     Proof.
       unfold FiniteProj.
@@ -111,8 +119,9 @@ Section decA.
       - apply in_proj_cons.
         unfold proj0 at 2.
         unfold FullProj in H. specialize (H d).
-        revert H.
-        apply in_proj_map_id_g; reflexivity.
+        apply (in_proj_map (exist (is_nat_map (md_elt (f := f)) proj0)
+                                  (inl, id) nat_left)).
+        apply H.
       - apply in_proj_eq; destruct u; reflexivity.
     Qed.
 

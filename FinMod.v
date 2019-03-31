@@ -21,6 +21,7 @@ Require Import Logic.Decidable.
 Require Import Program.Basics.
 Require Import Bool.
 
+Require Import SymbComp.NatMap.
 Require Import SymbComp.FinSet.
 
 Set Implicit Arguments.
@@ -68,15 +69,18 @@ Section FinMod.
   Proof.
     unfold fin_mod.
     intros eqH finF.
-    apply (finite_surj (mod_dom_cast eqH) finF (g := id)).
-    - intro d; destruct d; tauto.
-    - unfold SurjectiveProj.
-      intro d'; destruct d' as [ a gaH ].
-      specialize (eqH a).
-      assert (faH : mod_elt f a);
-        try (unfold mod_elt in *; rewrite eqH; tauto).
-      exists (exist _ a faH).
-      tauto.
+    assert (natH : is_nat_map (md_elt (f := f)) (md_elt (f := g))
+                              (mod_dom_cast eqH, id));
+      try (unfold is_nat_map; intro a; destruct a; auto).
+    apply (finite_surj (m := exist _ _ natH) finF).
+    unfold SurjectiveProj.
+    intro d'; destruct d' as [ a gaH ]; simpl; unfold id.
+    clear natH.
+    specialize (eqH a).
+    assert (faH : mod_elt f a);
+      try (unfold mod_elt in *; rewrite eqH; tauto).
+    exists (exist _ a faH).
+    tauto.
   Qed.
 End FinMod.
 

@@ -25,6 +25,8 @@ Require Import Program.Basics.
 Require Import Logic.FinFun.
 Require Import Logic.Decidable.
 
+Require Import SymbComp.NatMap.
+
 Set Implicit Arguments.
 
 (**
@@ -134,92 +136,19 @@ Qed.
  *)
 Lemma in_proj_map
       (A A' B B' : Type)
-      (f : A -> A') (g : B -> B') (p : A -> B) (p' : A' -> B') b l
-  : (forall a, p' (f a) = g (p a)) ->
-    InProj p b l ->
-    InProj p' (g b) (map f l).
+      (p : A -> B) (p' : A' -> B') (m : nat_map p p') b l
+  : InProj p b l -> InProj p' (nm_bot m b) (map (nm_top m) l).
 Proof.
-  intro natH.
   induction l as [ | a l IH ].
   - intro H. contradiction (in_proj_nil H).
   - intro H.
     destruct (in_proj_inv H); clear H.
     + apply in_proj_eq.
       rewrite <- H0.
-      apply natH.
+      apply nat_map_nat.
     + rewrite map_cons.
       apply in_proj_cons.
       apply IH. exact H0.
-Qed.
-
-(**
-   We follow up after [in_proj_map] with some specialised versions
-   that collapse single sides of the diagram. Firstly,
-   [in_proj_map_id_p], which uses this diagram:
-   % \begin{equation}
-     \begin{tikzcd}
-       A \arrow[dr, "g"'] \arrow[r, "f"] &
-       A' \arrow[d, "p"]
-       \\
-       &
-       B'
-     \end{tikzcd}
-   \end{equation} %
-*)
-
-Lemma in_proj_map_id_p
-      {A A' B : Type} (f : A -> A') (g: A -> B) (p : A' -> B) a l
-  : (forall a, p (f a) = g a) -> In a l -> InProj p (g a) (map f l).
-Proof.
-  intros natH inH.
-  apply (in_proj_map f g id p a l).
-  - intro a'. unfold id. apply natH.
-  - apply in_proj_in. exact inH.
-Qed.
-
-(**
-   Now [in_proj_map_id_p'], which collapses [p'] instead of [p]:
-   % \begin{equation}
-     \begin{tikzcd}
-       A \arrow[d, "p"] \arrow[r, "f"] &
-       A'
-       \\
-       B \arrow[ur, "g"'] &
-     \end{tikzcd}
-   \end{equation} %
-*)
-
-Lemma in_proj_map_id_p'
-      {A B A' : Type} (f : A -> A') (g : B -> A') (p : A -> B) b l
-  : (forall a, f a = g (p a)) -> InProj p b l -> In (g b) (map f l).
-Proof.
-  intros natH ipH.
-  apply in_proj_in.
-  apply (in_proj_map f g p id b l).
-  - intro a. unfold id. apply natH.
-  - exact ipH.
-Qed.
-
-(**
-   Finally, [in_proj_map_id_g], which collapses [g] across the bottom:
-   % \begin{equation}
-     \begin{tikzcd}
-       A \arrow[dr, "p"'] \arrow[rr, "f"] & &
-       A' \arrow[dl, "p'"]
-       \\
-       & B &
-     \end{tikzcd}
-   \end{equation} %
-*)
-
-Lemma in_proj_map_id_g
-      {A A' B : Type} (f : A -> A') (p : A -> B) (p' : A' -> B) b l
-  : (forall a, p' (f a) = p a) -> InProj p b l -> InProj p' b (map f l).
-Proof.
-  intros natH ipH.
-  apply (in_proj_map f id p p' b l).
-  - unfold id. exact natH.
-  - exact ipH.
 Qed.
 
 (** * Fullness of lists and finiteness
@@ -251,13 +180,6 @@ Definition FiniteProj (A B : Type) (p : A -> B) : Prop :=
    external sum of two maps).
 
  *)
-Definition sumf {A A' B B'} (f : A -> B) (g : A' -> B') (aa : A + A')
-  : B + B' :=
-  match aa with
-  | inl a => inl (f a)
-  | inr a' => inr (g a')
-  end.
-
 Lemma finite_sum {A A' B B': Type} (p : A -> B) (p' : A' -> B')
       : FiniteProj p -> FiniteProj p' -> FiniteProj (sumf p p').
 Proof.
@@ -273,14 +195,12 @@ Proof.
   destruct aa as [ a | a' ].
   - clear fpA'.
     apply in_proj_or_app; left.
-    apply (in_proj_map inl inl p (sumf p p')).
-    + reflexivity.
-    + unfold FullProj in fpA. apply fpA.
+    apply (in_proj_map (nat_map_inl p p')).
+    unfold FullProj in fpA. apply fpA.
   - clear fpA.
     apply in_proj_or_app; right.
-    apply (in_proj_map inr inr p' (sumf p p')).
-    + reflexivity.
-    + unfold FullProj in fpA'. apply fpA'.
+    apply (in_proj_map (nat_map_inr p' p)).
+    unfold FullProj in fpA'. apply fpA'.
 Qed.
 
 (** * The surjective image of a finite set is finite.
@@ -305,26 +225,22 @@ Qed.
 *)
 
 Definition SurjectiveProj
-           {A B A' B' : Type} (g : B -> B') (p : A -> B) (p' : A' -> B') :=
-  forall a' : A', exists a : A, g (p a) = p' a'.
+           {A B A' B' : Type} (p : A -> B) (p' : A' -> B') (m : nat_map p p') :=
+  forall a' : A', exists a : A, nm_bot m (p a) = p' a'.
 
 Lemma finite_surj
-      {A A' B B' : Type}
-      (f : A -> A') (g : B -> B') (p : A -> B) (p' : A' -> B')
-  : FiniteProj p ->
-    (forall a, p' (f a) = g (p a)) ->
-    SurjectiveProj g p p' ->
-    FiniteProj p'.
+      {A A' B B' : Type} (p : A -> B) (p' : A' -> B') (m : nat_map p p')
+  : FiniteProj p -> SurjectiveProj m -> FiniteProj p'.
 Proof.
   unfold FiniteProj.
-  intros fullP natH surjH.
+  intros fullP surjH.
   destruct fullP as [l fullH].
-  exists (map f l).
+  exists (map (nm_top m) l).
   unfold FullProj; intro a'.
   unfold SurjectiveProj in surjH.
   destruct (surjH a') as [ a aH ]; clear surjH.
   rewrite <- aH.
-  apply (in_proj_map f g p p'); try (exact natH).
+  apply in_proj_map.
   unfold FullProj in fullH.
   apply fullH.
 Qed.
@@ -339,10 +255,12 @@ Lemma finite_surj_vert {A B B' : Type} (p : A -> B) (q : B -> B')
   : FiniteProj p -> Surjective q -> FiniteProj (compose q p).
 Proof.
   intros fpH surjH.
-  apply (@finite_surj _ _ _ _ id q p (compose q p) fpH).
-  - reflexivity.
-  - unfold SurjectiveProj, compose.
-    intro a. exists a. exact eq_refl.
+  set (m0 := nat_map_v p).
+  set (m1 := nat_map_diag id q).
+  assert (midH : forall b : B, nm_top m1 b = nm_bot m0 b); auto.
+  apply (finite_surj (m := nat_map_comp_v m0 m1 midH)); auto.
+  unfold SurjectiveProj, compose; simpl.
+  intro a. exists a. auto.
 Qed.
 
 (** ** Finiteness of an internal sum %\label{sec:int-sum-finite}%
@@ -574,8 +492,7 @@ Section finite_option.
     unfold FullProj.
     intro x; destruct x as [ a | ].
     - apply in_proj_cons.
-      simpl.
-      apply (in_proj_map Some Some p); try reflexivity.
+      apply (in_proj_map (nat_map_some p)).
       unfold FullProj in fullL. apply fullL.
     - apply in_proj_eq; reflexivity.
   Qed.
@@ -632,15 +549,14 @@ Module surj_finite_option.
       exact (finite_option_intro finP).
     Qed.
 
-    Local Lemma OnatH: forall a : option A, xp' (xf a) = xg (xp a).
+    Local Lemma OnatH: is_nat_map xp xp' (xf, xg).
     Proof.
-      intro a; destruct a; simpl; auto.
+      unfold is_nat_map. intro a; destruct a; simpl; auto.
     Qed.
 
-    Local Lemma OsurjH
-      : forall x' : option A', exists x : option A, xg (xp x) = xp' x'.
+    Local Lemma OsurjH : SurjectiveProj (exist _ (xf, xg) OnatH).
     Proof.
-      intro x'; destruct x' as [ a' | ].
+      unfold SurjectiveProj; intro x'; destruct x' as [ a' | ].
       - specialize (surjH a').
         destruct surjH as [ a H ]; clear surjH.
         exists (Some a).
@@ -652,7 +568,7 @@ Module surj_finite_option.
     Lemma finite_surj_option : FiniteProj p'.
     Proof.
       apply finite_option_elim.
-      apply (finite_surj xf OfinP OnatH OsurjH).
+      apply (finite_surj OfinP OsurjH).
     Qed.
   End surj_finite_option.
 End surj_finite_option.

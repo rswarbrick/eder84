@@ -4,5 +4,6 @@ VecUtils.v
 ListMod.v
 FinMod.v
 FinSet.v
+NatMap.v
 
 -Q . SymbComp
