@@ -595,112 +595,16 @@ Section inProjPartition.
   Variables p : A -> B.
   Hypothesis decB : forall b1 b2 : B, {b1 = b2} + {b1 <> b2}.
 
-  Local Lemma elements_in_proj_partition_nil t l0 l1
-  : partition t nil = (l0, l1) ->
-    forall b : B, InProj p b nil <-> InProj p b l0 \/ InProj p b l1.
-  Proof.
-    intros partH b.
-    constructor.
-    + intro nilH; contradiction (in_proj_nil nilH).
-    + destruct (partition_inv_nil t nil) as [ _ pnilH ].
-      specialize (pnilH eq_refl).
-      rewrite partH in pnilH; clear partH.
-      pose proof (f_equal fst pnilH) as l0H; simpl in l0H.
-      pose proof (f_equal snd pnilH) as l1H; simpl in l1H.
-      rewrite l0H, l1H; clear pnilH l0H l1H l0 l1.
-      destruct 1; tauto.
-  Qed.
-
-  Local Lemma elements_in_proj_partition_step_ltr t a l l0 l1
-    : (forall l0 l1 : list A,
-          partition t l = (l0, l1) ->
-          forall b, InProj p b l -> InProj p b l0 \/ InProj p b l1) ->
-      partition t (a :: l) = (l0, l1) ->
-      forall b : B, InProj p b (a :: l) -> InProj p b l0 \/ InProj p b l1.
-  Proof.
-    intros IH partH b inprojH.
-    case_eq (partition t l).
-    intros l0' l1' part_tlH.
-    case_eq (t a).
-    - intro taH.
-      rewrite (partition_cons1 t a l part_tlH taH) in partH.
-      destruct (decompose_pair_eq partH) as [ l0H l1H ].
-      rewrite l1H in *; clear l1' l1H.
-      specialize (IH l0' l1 part_tlH b).
-      clear partH part_tlH.
-      destruct (decB (p a) b) as [ aeqH | aneqH ].
-      + rewrite <- l0H; left; apply in_proj_eq; tauto.
-      + specialize (IH (in_proj_neq aneqH inprojH)).
-        destruct IH; auto.
-        left; rewrite <- l0H.
-        apply in_proj_cons; tauto.
-    - intro taH.
-      rewrite (partition_cons2 t a l part_tlH taH) in partH.
-      destruct (decompose_pair_eq partH) as [ l0H l1H ].
-      rewrite l0H in *; clear l0' l0H.
-      specialize (IH l0 l1' part_tlH b).
-      clear partH part_tlH.
-      destruct (decB (p a) b) as [ aeqH | aneqH ].
-      + rewrite <- l1H; right; apply in_proj_eq; tauto.
-      + specialize (IH (in_proj_neq aneqH inprojH)).
-        destruct IH; auto.
-        right; rewrite <- l1H.
-        apply in_proj_cons; tauto.
-  Qed.
-
-  Local Lemma elements_in_proj_partition_step_rtl t a l l0 l1
-    : (forall l0 l1 : list A,
-          partition t l = (l0, l1) ->
-          forall b, InProj p b l0 \/ InProj p b l1 -> InProj p b l) ->
-      partition t (a :: l) = (l0, l1) ->
-      forall b : B, InProj p b l0 \/ InProj p b l1 -> InProj p b (a :: l).
-  Proof.
-    intros IH partH b orH.
-    destruct (decB (p a) b) as [ aeqH | aneH ];
-      try (apply in_proj_eq; tauto).
-    apply in_proj_cons.
-    case_eq (partition t l).
-    intros l0' l1' part_tlH.
-    apply (IH l0' l1' part_tlH b).
-    case_eq (t a).
-    - intro taH. rewrite (partition_cons1 t a l part_tlH taH) in partH.
-      destruct (decompose_pair_eq partH) as [ l0H l1H ]; clear partH.
-      rewrite <- l0H in *; rewrite <- l1H in *; clear l0H l0 l1H l1.
-      destruct orH as [ in0H | in1H ].
-      + left. exact (in_proj_neq aneH in0H).
-      + right; assumption.
-    - intro taH. rewrite (partition_cons2 t a l part_tlH taH) in partH.
-      destruct (decompose_pair_eq partH) as [ l0H l1H ]; clear partH.
-      rewrite <- l0H in *; rewrite <- l1H in *; clear l0H l0 l1H l1.
-      destruct orH as [ in0H | in1H ].
-      + left. assumption.
-      + right; exact (in_proj_neq aneH in1H).
-  Qed.
-
-  Local Lemma elements_in_proj_partition_step t a l l0 l1
-    : (forall l0 l1 : list A,
-          partition t l = (l0, l1) ->
-          forall b, InProj p b l <-> InProj p b l0 \/ InProj p b l1) ->
-      partition t (a :: l) = (l0, l1) ->
-      forall b : B, InProj p b (a :: l) <-> InProj p b l0 \/ InProj p b l1.
-  Proof.
-    intros IH partH b.
-    constructor.
-    - apply (elements_in_proj_partition_step_ltr t); try tauto.
-      intros l0' l1' partH' b'; specialize (IH l0' l1' partH' b'); tauto.
-    - apply (elements_in_proj_partition_step_rtl t); try tauto.
-      intros l0' l1' partH' b'; specialize (IH l0' l1' partH' b'); tauto.
-  Qed.
-
   Lemma elements_in_proj_partition t l l0 l1
     : partition t l = (l0, l1) ->
       forall b : B, InProj p b l <-> InProj p b l0 \/ InProj p b l1.
   Proof.
     revert l0 l1.
-    induction l as [ | a l IH ].
-    - apply elements_in_proj_partition_nil.
-    - intros l0 l1.
-      apply elements_in_proj_partition_step.
-      apply IH.
+    induction l as [ | a l' IH ]; simpl; intros l0 l1 Eq b.
+    - injection Eq as <- <-; tauto.
+    - destruct (partition t l') as (ll, lr).
+      specialize (IH ll lr eq_refl b).
+      destruct (t a); injection Eq as <- <-; simpl; tauto.
   Qed.
+
 End inProjPartition.
