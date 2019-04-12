@@ -607,4 +607,44 @@ Section inProjPartition.
       destruct (t a); injection Eq as <- <-; simpl; tauto.
   Qed.
 
+  Lemma in_proj_partition_discT t l l0 l1
+    : (forall a a', p a = p a' -> t a = t a') ->
+      partition t l = (l0, l1) ->
+      (forall a, InProj p (p a) l0 -> t a = true).
+  Proof.
+    intros ptH; revert l0 l1.
+    induction l as [ | aa l' IH ]; simpl; intros l0 l1 eqH a.
+    - injection eqH as <- <-; simpl; tauto.
+    - destruct (partition t l') as (ll, lr).
+      specialize (IH ll lr eq_refl a).
+      specialize (ptH aa a).
+      destruct (t aa);
+        injection eqH as <- _; simpl; try (apply IH).
+      destruct 1;
+        try match goal with
+            | [ H : p aa = p a |- _ ] => specialize (ptH H)
+            end;
+        first [ congruence | tauto ].
+  Qed.
+
+  Lemma in_proj_partition_discF t l l0 l1
+    : (forall a a', p a = p a' -> t a = t a') ->
+      partition t l = (l0, l1) ->
+      (forall a, InProj p (p a) l1 -> t a = false).
+  Proof.
+    intros ptH; revert l0 l1.
+    induction l as [ | aa l' IH ]; simpl; intros l0 l1 eqH a.
+    - injection eqH as <- <-; simpl; tauto.
+    - destruct (partition t l') as (ll, lr).
+      specialize (IH ll lr eq_refl a).
+      specialize (ptH aa a).
+      destruct (t aa);
+        injection eqH as _ <-; simpl; try (apply IH).
+      destruct 1;
+        try match goal with
+            | [ H : p aa = p a |- _ ] => specialize (ptH H)
+            end;
+        first [ congruence | tauto ].
+  Qed.
+
 End inProjPartition.
