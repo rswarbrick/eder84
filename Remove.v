@@ -37,4 +37,19 @@ Section remove.
         auto with datatypes.
   Qed.
 
+  Lemma in_remove_means_in_original a a' l
+    : In a (remove decA a' l) -> In a l.
+  Proof.
+    induction l as [ | a'' l IH ]; auto.
+    destruct (decA a' a'') as [ <- | neH' ].
+    - rewrite remove_eq; auto using in_cons.
+    - rewrite (remove_neq neH').
+      destruct 1 as [ -> | neH ]; auto with datatypes.
+  Qed.
+
 End remove.
+
+Arguments remove_eq {A} decA a l.
+Arguments remove_neq {A} decA {a a'} l.
+Arguments in_remove {A} decA {a a' l}.
+Arguments in_remove_means_in_original {A} decA {a a' l}.
