@@ -65,7 +65,7 @@ Section decA.
     case_eq (search a l); auto.
     intros nsearchH inH.
     pose proof (Is_true_eq_true _ (in_imp_search a l inH)) as searchH.
-    contradiction diff_false_true; congruence.
+    congruence.
   Qed.
 
   Lemma if_search_false {B : Type} {a l} (b b' : B)
@@ -73,8 +73,7 @@ Section decA.
   Proof.
     case_eq (search a l); auto.
     intros searchH notinH.
-    contradiction notinH; clear notinH.
-    auto using Is_true_eq_left, search_imp_in.
+    contradiction notinH; auto using Is_true_eq_left, search_imp_in.
   Qed.
 
   Fixpoint rem_dups (seen l : list A) : list A :=
@@ -88,10 +87,7 @@ Section decA.
   Lemma search_false_imp_not_in a l
     : search a l = false -> ~ In a l.
   Proof.
-    intros search inH.
-    rewrite <- search_iff_in in inH.
-    rewrite search in inH.
-    auto.
+    intros searchH; rewrite <- search_iff_in, searchH. auto.
   Qed.
 
   Lemma seen_not_in_rem_dups a seen l
