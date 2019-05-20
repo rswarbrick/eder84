@@ -6,7 +6,7 @@ Require Import SymbComp.Remove.
 (*
   Facts about lists with no repeated elements
 *)
-Section distinct.
+Section decA.
   Variable A : Type.
 
   Fixpoint distinct (l : list A) :=
@@ -15,24 +15,27 @@ Section distinct.
     | (a :: l') => (~ In a l') /\ distinct l'
     end.
 
+  Lemma distinct_cons_intro a l
+    : ~ In a l -> distinct l -> distinct (a :: l).
+  Proof. simpl; auto. Qed.
+
+  Hint Resolve distinct_cons_intro : distinct.
+
   Hypothesis decA : forall a a' : A, {a = a'} + {a <> a'}.
+
+  Ltac if_dec :=
+    match goal with
+    | [ |- context [ if decA ?a ?a' then _ else _ ] ] =>
+      destruct (decA a a') as [ <- | ]
+    end.
 
   Lemma distinct_remove a l
     : distinct l -> distinct (remove decA a l).
   Proof.
-    induction l as [ | a' l IH ]; try tauto.
-    destruct 1 as [ norepH distH ].
-    unfold remove; fold (remove decA).
-    destruct (decA a a') as [ <- | neH ]; auto.
-    split; eauto using (in_remove_means_in_original decA).
+    induction l; try tauto.
+    destruct 1; autorewrite with remove; if_dec; auto.
+    eauto 6 using (in_remove_means_in_original decA) with distinct.
   Qed.
-
-End distinct.
-
-(* How to make a distinct list *)
-Section rem_dups.
-  Variable A : Type.
-  Hypothesis decA : forall a a' : A, {a = a'} + {a <> a'}.
 
   Fixpoint search (a : A) l : bool :=
     match l with
@@ -42,17 +45,13 @@ Section rem_dups.
 
   Lemma search_imp_in a l : Is_true (search a l) -> In a l.
   Proof.
-    induction l as [ | a' ]; auto.
-    simpl; destruct (decA a a'); auto.
+    induction l; auto; simpl; if_dec; auto.
   Qed.
 
   Lemma in_imp_search a l : In a l -> Is_true (search a l).
   Proof.
-    induction l as [ | a' ]; auto.
-    simpl; destruct (decA a a') as [ <- | neH ].
-    - simpl; auto.
-    - destruct 1; auto.
-      contradiction neH; auto.
+    induction l as [ | a' ]; simpl; auto.
+    if_dec; simpl; auto; destruct 1; auto; congruence.
   Qed.
 
   Lemma search_iff_in a l : Is_true (search a l) <-> In a l.
@@ -108,13 +107,13 @@ Section rem_dups.
   Qed.
 
   Lemma distinct_rem_dups seen l
-    : distinct A (rem_dups seen l).
+    : distinct (rem_dups seen l).
   Proof.
     revert seen; induction l as [ | a l IH ]; intro seen.
     - simpl; auto.
     - unfold rem_dups; fold rem_dups.
       case (search a seen); auto.
-      unfold distinct; fold (distinct A).
+      unfold distinct; fold distinct.
       split; auto using seen_not_in_rem_dups with datatypes.
   Qed.
 
@@ -133,4 +132,4 @@ Section rem_dups.
       destruct 1 as [ -> |  ]; contradiction.
   Qed.
 
-End rem_dups.
+End decA.
