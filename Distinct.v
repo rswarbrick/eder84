@@ -60,6 +60,24 @@ Section rem_dups.
     constructor; auto using search_imp_in, in_imp_search.
   Qed.
 
+  Lemma if_search_true {B : Type} {a l} (b b' : B)
+    : In a l -> (if search a l then b else b') = b.
+  Proof.
+    case_eq (search a l); auto.
+    intros nsearchH inH.
+    pose proof (Is_true_eq_true _ (in_imp_search a l inH)) as searchH.
+    contradiction diff_false_true; congruence.
+  Qed.
+
+  Lemma if_search_false {B : Type} {a l} (b b' : B)
+    : ~ In a l -> (if search a l then b else b') = b'.
+  Proof.
+    case_eq (search a l); auto.
+    intros searchH notinH.
+    contradiction notinH; clear notinH.
+    auto using Is_true_eq_left, search_imp_in.
+  Qed.
+
   Fixpoint rem_dups (seen l : list A) : list A :=
     match l with
     | nil => nil
@@ -98,6 +116,21 @@ Section rem_dups.
       case (search a seen); auto.
       unfold distinct; fold (distinct A).
       split; auto using seen_not_in_rem_dups with datatypes.
+  Qed.
+
+  Lemma in_rem_dups_if a l seen
+    : In a l -> ~ In a seen -> In a (rem_dups seen l).
+  Proof.
+    revert seen.
+    induction l as [ | a' l IH ]; try contradiction.
+    intros seen inH notseenH; unfold rem_dups; fold rem_dups.
+    destruct (decA a a') as [ <- | neH ].
+    - rewrite (if_search_false _ _ notseenH); apply in_eq.
+    - destruct inH as [ -> | inH ]; try contradiction.
+      case_eq (search a' seen); auto; intros.
+      apply in_cons.
+      apply (IH (a' :: seen) inH).
+      destruct 1 as [ -> |  ]; contradiction.
   Qed.
 
 End rem_dups.
