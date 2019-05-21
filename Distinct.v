@@ -27,6 +27,8 @@ Section decA.
     match goal with
     | [ |- context [ if decA ?a ?a' then _ else _ ] ] =>
       destruct (decA a a') as [ <- | ]
+    | [ |- context [ In ?a (?a' :: ?l) ] ] =>
+      destruct (decA a a') as [ <- | ]
     end.
 
   Lemma distinct_remove a l
@@ -59,21 +61,28 @@ Section decA.
     constructor; auto using search_imp_in, in_imp_search.
   Qed.
 
-  Lemma if_search_true {B : Type} {a l} (b b' : B)
-    : In a l -> (if search a l then b else b') = b.
+  Lemma search_induct a l {P : Prop}
+    : (search a l = true -> In a l -> P) ->
+      (search a l = false -> ~ In a l -> P) ->
+      P.
   Proof.
-    case_eq (search a l); auto.
-    intros nsearchH inH.
-    pose proof (Is_true_eq_true _ (in_imp_search a l inH)) as searchH.
-    congruence.
+    case_eq (search a l).
+    - intro stH. pose (search_imp_in _ _ (Is_true_eq_left _ stH)); auto.
+    - intros sfH; rewrite <- search_iff_in, sfH. auto.
   Qed.
+
+  Ltac search_discr :=
+    match goal with
+    | [ |- context [ search ?a ?l ] ] =>
+      intros; apply (search_induct a l);
+      let H := fresh "H" in
+      intro H; rewrite H
+    end.
 
   Lemma if_search_false {B : Type} {a l} (b b' : B)
     : ~ In a l -> (if search a l then b else b') = b'.
   Proof.
-    case_eq (search a l); auto.
-    intros searchH notinH.
-    contradiction notinH; auto using Is_true_eq_left, search_imp_in.
+    search_discr; auto; try contradiction.
   Qed.
 
   Fixpoint rem_dups (seen l : list A) : list A :=
@@ -83,6 +92,13 @@ Section decA.
                    then rem_dups seen l'
                    else cons a (rem_dups (cons a seen) l')
     end.
+
+  Lemma rem_dups_cons seen a l
+    : rem_dups seen (a :: l) =
+      (if search a seen then rem_dups seen l else a :: rem_dups (a :: seen) l).
+  Proof. simpl; auto. Qed.
+
+  Hint Rewrite rem_dups_cons : rem_dups.
 
   Lemma search_false_imp_not_in a l
     : search a l = false -> ~ In a l.
@@ -94,23 +110,17 @@ Section decA.
     : In a seen -> ~ In a (rem_dups seen l).
   Proof.
     revert seen; induction l as [ | a' l IH ]; intro seen; auto.
-    unfold rem_dups; fold rem_dups.
-    case_eq (search a' seen); auto.
-    destruct (decA a a') as [ <- | neH ]; intros unseenH inH.
-    - contradiction (search_false_imp_not_in _ _ unseenH).
-    - specialize (IH (a' :: seen) (in_cons _ _ _ inH)).
-      simpl; intuition.
+    autorewrite with rem_dups.
+    intros; search_discr; auto; if_dec; auto.
+    specialize (IH (a' :: seen)); simpl; intuition.
   Qed.
 
   Lemma distinct_rem_dups seen l
     : distinct (rem_dups seen l).
   Proof.
-    revert seen; induction l as [ | a l IH ]; intro seen.
-    - simpl; auto.
-    - unfold rem_dups; fold rem_dups.
-      case (search a seen); auto.
-      unfold distinct; fold distinct.
-      split; auto using seen_not_in_rem_dups with datatypes.
+    revert seen; induction l as [ | a l IH ]; intro seen;
+      simpl; auto; search_discr; auto.
+    split; auto using seen_not_in_rem_dups with datatypes.
   Qed.
 
   Lemma in_rem_dups_if a l seen
