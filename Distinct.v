@@ -19,6 +19,12 @@ Section decA.
     : ~ In a l -> distinct l -> distinct (a :: l).
   Proof. simpl; auto. Qed.
 
+  Lemma distinct_uncons a l
+    : distinct (a :: l) -> distinct l.
+  Proof.
+    simpl; tauto.
+  Qed.
+
   Hint Resolve distinct_cons_intro : distinct.
 
   Hypothesis decA : forall a a' : A, {a = a'} + {a <> a'}.
@@ -138,4 +144,33 @@ Section decA.
       destruct 1 as [ -> |  ]; contradiction.
   Qed.
 
+  Lemma remove_notin a l
+    : ~ In a l -> remove decA a l = l.
+  Proof.
+    induction l as [ | a' l IH ]; try tauto.
+    unfold remove; fold (remove decA).
+    destruct (decA a a') as [ <- | neH ].
+    - intros H; contradiction H; apply in_eq.
+    - intros; apply f_equal; intuition.
+  Qed.
+
+  Lemma length_distinct_remove_in a l
+    : distinct l -> In a l ->
+      length l = S (length (remove decA a l)).
+  Proof.
+    induction l as [ | a' l IH ]; try contradiction.
+    destruct 1 as [ notL distH ].
+    unfold remove; fold (remove decA).
+    destruct (decA a a') as [ <- | neH ].
+    - rewrite (remove_notin _ _ notL); auto.
+    - destruct 1 as [ -> | inH ]; try contradiction.
+      simpl; rewrite (IH distH inH); auto.
+  Qed.
+
 End decA.
+
+Arguments distinct {A}.
+Arguments distinct_uncons {A a l}.
+Arguments distinct_remove {A} decA a {l}.
+Arguments remove_notin {A} decA {a l}.
+Arguments length_distinct_remove_in {A} decA {a l}.
