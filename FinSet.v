@@ -42,51 +42,32 @@ Section InProj.
   Variables (A B : Type).
   Variable (p : A -> B).
 
-  Fixpoint InProj (b : B) (l : list A) :=
-    match l with
-    | nil => False
-    | a :: m => p a = b \/ InProj b m
-    end.
+  Definition InProj (b : B) (l : list A) := In b (map p l).
 
   Lemma in_proj_cons a b l : InProj b l -> InProj b (a :: l).
   Proof.
-    unfold InProj at 2; fold InProj.
-    right. exact H.
+    unfold InProj; rewrite map_cons; auto with datatypes.
   Qed.
 
   Lemma in_proj_eq a b l : p a = b -> InProj b (a :: l).
   Proof.
-    intro H. unfold InProj. fold InProj. left. exact H.
+    unfold InProj; rewrite map_cons; intros ->; apply in_eq.
   Qed.
 
   Lemma in_proj_nil b : ~ InProj b nil.
   Proof.
-    unfold InProj. unfold not. intro H. apply H.
+    unfold InProj, map; auto with datatypes.
   Qed.
 
   Lemma in_proj_inv a b l : InProj b (a :: l) -> p a = b \/ InProj b l.
   Proof.
-    unfold InProj at 1; fold InProj.
-    intro H; exact H.
+    unfold InProj; rewrite map_cons; apply in_inv.
   Qed.
 
   Lemma in_proj_or_app (l m : list A) (b : B)
     : InProj b l \/ InProj b m -> InProj b (l ++ m).
   Proof.
-    induction l as [ | a l IH ] .
-    - rewrite app_nil_l.
-      intro orH.
-      destruct orH.
-      + apply in_proj_nil in H. contradiction H.
-      + exact H.
-    - intro orH.
-      rewrite <- app_comm_cons.
-      destruct orH.
-      + unfold InProj in H; fold InProj in H.
-        destruct H.
-        * apply in_proj_eq. exact H.
-        * apply in_proj_cons. apply IH. left. exact H.
-      + apply in_proj_cons. apply IH. right. exact H.
+    unfold InProj; rewrite map_app; apply in_or_app.
   Qed.
 End InProj.
 
