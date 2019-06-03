@@ -88,6 +88,9 @@ Section inj_map.
   Qed.
 End inj_map.
 
+Arguments nat_map_gives_list_map {A B C D p q} f l1 {l2}.
+Arguments nm_bot_inj_on_list {A B C D p q} f injH l1.
+
 Section fp_card_unique.
   Variables A B : Type.
   Variable p : A -> B.
@@ -108,3 +111,58 @@ Section fp_card_unique.
 End fp_card_unique.
 
 Arguments fp_card_unique {A B} p decB.
+
+(*
+
+  We want to show that an injective endomorphism on a finite set is in
+  fact a bijection.
+
+  How do we do this? Well, the first thing is to notice that this
+  injection must also be surjective. We'll show a slightly stronger
+  result: if two sets have the same cardinality, an injection from one
+  to the other is a surjection. We have proved the "list form" of this
+  in the InjList theory.
+
+*)
+Section inj_same_size.
+  Variables A B C D : Type.
+  Variable p : A -> B.
+  Variable q : C -> D.
+  Variable f : nat_map p q.
+
+  Variable n : nat.
+  Hypothesis cardpH : fp_card p n.
+  Hypothesis cardqH : fp_card q n.
+
+  Hypothesis injH :
+    forall a a',
+      nm_bot f (p a) = nm_bot f (p a') ->
+      p a = p a'.
+
+  Hypothesis decD : forall x y : D, {x = y} + {x <> y}.
+
+  Lemma fp_inj_same_card_is_surj
+    : SurjectiveProj f.
+  Proof.
+    destruct cardpH as [ lp H ];
+      destruct H as [ distpH H ];
+      destruct H as [ fullpH lenpH ].
+    destruct cardqH as [ lq H ];
+      destruct H as [ distqH H ];
+      destruct H as [ fullqH lenqH ].
+    assert (surjH : surj_on_list (nm_bot f) (map p lp) (map q lq));
+      try (apply (inj_on_eql_list_is_surj
+                    (map p lp) (map q lq) decD distpH distqH
+                    (nat_map_gives_list_map f lp fullqH)
+                    (nm_bot_inj_on_list f injH lp));
+           rewrite !map_length; congruence).
+    intros c.
+    specialize (fullqH c).
+    specialize (surjH (q c) fullqH).
+    rewrite in_map_iff in surjH.
+    destruct surjH as [ b bH ]; destruct bH as [ <- bH ].
+    rewrite in_map_iff in bH.
+    destruct bH as [ a aH ]; destruct aH as [ <- aH ].
+    exists a; reflexivity.
+  Qed.
+End inj_same_size.
