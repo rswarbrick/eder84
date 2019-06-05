@@ -138,10 +138,7 @@ Section inj_map.
     apply fullH.
   Qed.
 
-  Hypothesis injH :
-    forall a a',
-      nm_bot f (p a) = nm_bot f (p a') ->
-      p a = p a'.
+  Hypothesis injH : inj_nat_map f.
 
   Lemma nm_bot_inj_on_list l1
     : inj_on_list (nm_bot f) (map p l1).
@@ -187,7 +184,8 @@ Section fp_card_unique.
   Local Lemma fp_card_le n m
     : fp_card p n -> fp_card p m -> n <= m.
   Proof.
-    apply (fp_card_inj_le A B A B p p (nat_map_v p)); auto.
+    apply (fp_card_inj_le A B A B p p (nat_map_v p));
+      unfold inj_nat_map; auto.
   Qed.
 
   Lemma fp_card_unique n m
@@ -222,10 +220,7 @@ Section inj_same_size.
   Hypothesis cardpH : fp_card p n.
   Hypothesis cardqH : fp_card q n.
 
-  Hypothesis injH :
-    forall a a',
-      nm_bot f (p a) = nm_bot f (p a') ->
-      p a = p a'.
+  Hypothesis injH : inj_nat_map f.
 
   Hypothesis decD : forall x y : D, {x = y} + {x <> y}.
 
@@ -261,12 +256,7 @@ Section inj_endo_is_surj.
   Variables A B : Type.
   Variable p : A -> B.
   Variable f : nat_map p p.
-
-  Hypothesis injH :
-    forall a a',
-      nm_bot f (p a) = nm_bot f (p a') ->
-      p a = p a'.
-
+  Hypothesis injH : inj_nat_map f.
   Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
   Hypothesis finH : FiniteProj p.
 

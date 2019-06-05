@@ -116,3 +116,17 @@ Definition nat_map_diag (A B C : Type) (f : A -> B) (g : B -> C)
 Definition nat_map_some (A B : Type) (p : A -> B)
   : nat_map p (option_map p) := exist (is_nat_map p (option_map p))
                                       (Some, Some) (fun _ => eq_refl).
+
+(*
+
+  The notion of injectivity that we want is injectivity on the lower
+  map. If [p] is surjective (which is usually the case in settings we
+  care about), this is exactly asking that [nm_bot f] is injective. In
+  general, we just ask that it's injective on the image of [p].
+
+*)
+Definition inj_nat_map
+           (A B C D : Type) (p : A -> B) (q : C -> D)
+           (f : nat_map p q) :=
+  forall a a',
+    nm_bot f (p a) = nm_bot f (p a') -> p a = p a'.
