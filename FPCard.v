@@ -11,6 +11,7 @@
 
 Require Import Lists.List.
 Require Import PeanoNat.
+Require Import Bool.
 
 Require Import SymbComp.FinSet.
 Require Import SymbComp.NatMap.
@@ -26,6 +27,93 @@ Require Import SymbComp.InjList.
  *)
 Definition fp_card {A B : Type} (p : A -> B) (n : nat) : Prop :=
   exists l, distinct (map p l) /\ FullProj p l /\ length l = n.
+
+(**
+   A finite projection always has a cardinality, providing that we
+   have decidability downstairs. The proof is that you pick a listing
+   that implies finiteness and remove elements that give duplicates
+   under the projection. That second part needs a function.
+ *)
+Section rem_dups_below.
+  Variables A B : Type.
+  Variable p : A -> B.
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+
+  Fixpoint rem_dups_below (s : list B) (l : list A) : list A :=
+    match l with
+    | nil => nil
+    | a :: l' => if search _ decB (p a) s
+                 then rem_dups_below s l'
+                 else a :: rem_dups_below (p a :: s) l'
+    end.
+
+  Lemma seen_not_in_rem_dups_below b s l
+    : In b s -> ~ In b (map p (rem_dups_below s l)).
+  Proof.
+    revert s; induction l as [ | a l IH ]; auto.
+    intro s; unfold rem_dups_below; fold rem_dups_below.
+    case_eq (search B decB (p a) s); auto.
+    intros nsearchH inbH.
+    rewrite map_cons.
+    destruct 1 as [ <- | x ].
+    - auto using
+           (eq_true_false_abs (search B decB (p a) s)),
+           (Is_true_eq_true _ (in_imp_search _ decB _ _ inbH)).
+    - contradiction (IH (p a :: s) (in_cons (p a) b s inbH)).
+  Qed.
+
+  Lemma distinct_map_rem_dups_below s l
+    : distinct (map p (rem_dups_below s l)).
+  Proof.
+    revert s; induction l as [ | a l IH ]; simpl; auto; intro s.
+    case (search B decB (p a) s); auto.
+    rewrite map_cons.
+    apply distinct_cons_intro; auto.
+    apply seen_not_in_rem_dups_below.
+    apply in_eq.
+  Qed.
+
+  Lemma in_map_rem_dups_below b s l
+    : In b (map p l) -> ~ In b s -> In b (map p (rem_dups_below s l)).
+  Proof.
+    revert s; induction l as [ | a l IH ]; auto.
+    intro s.
+    unfold rem_dups_below; fold rem_dups_below.
+    case_eq (search B decB (p a) s);
+      intros searchH inconsH.
+    - destruct inconsH as [ <- | ]; auto; intro notinH.
+      contradiction notinH.
+      apply (search_imp_in _ decB).
+      apply (Is_true_eq_left _ searchH).
+    - rewrite map_cons.
+      destruct (decB b (p a)) as [ <- | neH ]; intros notinH.
+      + apply in_eq.
+      + apply in_cons.
+        destruct inconsH as [ <- | inH ]; try tauto.
+        apply IH; auto.
+        destruct 1; auto.
+  Qed.
+End rem_dups_below.
+
+Arguments rem_dups_below {A B} p decB s l.
+Arguments distinct_map_rem_dups_below {A B} p decB s l.
+Arguments in_map_rem_dups_below {A B} p decB b s l.
+
+Lemma fp_card_exists
+      {A B : Type} (p : A -> B)
+      (decB : forall x y : B, {x = y} + {x <> y})
+  : FiniteProj p -> exists n, fp_card p n.
+Proof.
+  destruct 1 as [ l fullH ].
+  unfold fp_card.
+  set (l' := rem_dups_below p decB nil l).
+  exists (length l'), l'; intuition.
+  - apply (distinct_map_rem_dups_below p decB nil l).
+  - unfold FullProj in *.
+    intro a; specialize (fullH a).
+    unfold InProj in *.
+    apply in_map_rem_dups_below; auto.
+Qed.
 
 (**
   If we have an injective map from one projection to the next, then a
