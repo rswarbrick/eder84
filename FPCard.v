@@ -254,3 +254,28 @@ Section inj_same_size.
     exists a; reflexivity.
   Qed.
 End inj_same_size.
+
+Arguments fp_inj_same_card_is_surj {A B C D p q} f {n} cardpH cardqH injH decD.
+
+Section inj_endo_is_surj.
+  Variables A B : Type.
+  Variable p : A -> B.
+  Variable f : nat_map p p.
+
+  Hypothesis injH :
+    forall a a',
+      nm_bot f (p a) = nm_bot f (p a') ->
+      p a = p a'.
+
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+  Hypothesis finH : FiniteProj p.
+
+  Lemma inj_endo_is_surj
+    : SurjectiveProj f.
+  Proof.
+    destruct (fp_card_exists p decB finH) as [ n cardH ].
+    apply (fp_inj_same_card_is_surj f cardH cardH injH decB).
+  Qed.
+End inj_endo_is_surj.
+
+Arguments inj_endo_is_surj {A B p} f injH decB finH.
