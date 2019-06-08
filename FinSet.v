@@ -570,3 +570,48 @@ Proof.
   intros neq consH.
   destruct (in_proj_inv consH); tauto.
 Qed.
+
+(** * Sections of projections
+
+    It isn't the case that we can always make a section for a
+    projection (as defined in this theory) - the whole point is that
+    [p : A -> B] probably isn't surjective. However, if we are given
+    some element of A then we can map elements of B that we don't care
+    about to that point. If [l] is nonempty, we could just use the
+    first element of the list, but I think it's cleaner to pass in
+    this element explicitly (which punts on the problems you get
+    otherwise when [A] is empty).
+ *)
+Section proj_section.
+  Variables A B : Type.
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+  Variable p : A -> B.
+  Variable a0 : A.
+
+  Fixpoint proj_section (b : B) (l : list A) : A :=
+    match l with
+    | nil => a0
+    | a :: l' => match decB (p a) b with
+                 | left eqH => a
+                 | right neH => proj_section b l'
+                 end
+    end.
+
+  Lemma proj_section_if_in b l
+    : In b (map p l) -> p (proj_section b l) = b.
+  Proof.
+    induction l as [ | a l IH ]; try contradiction.
+    unfold proj_section; fold proj_section.
+    destruct (decB (p a) b) as [ | neH ]; auto.
+    destruct 1 as [ | inH ]; tauto.
+  Qed.
+
+  Lemma full_proj_section_is_section l
+    : FullProj p l ->
+      forall a : A, p (proj_section (p a) l) = p a.
+  Proof.
+    intros.
+    apply proj_section_if_in.
+    unfold FullProj, InProj in *; auto.
+  Qed.
+End proj_section.
