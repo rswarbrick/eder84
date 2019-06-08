@@ -615,3 +615,123 @@ Section proj_section.
     unfold FullProj, InProj in *; auto.
   Qed.
 End proj_section.
+
+(** * Inverses of surjective natural maps
+
+  *)
+Lemma map_compose
+      {A B C : Type}
+      (f : A -> B) (g : B -> C) (l : list A)
+  : map (compose g f) l = map g (map f l).
+Proof.
+  induction l as [ | a l IH ]; auto.
+  rewrite map_cons, map_cons, map_cons.
+  unfold compose at 1.
+  apply f_equal; auto.
+Qed.
+
+Section surj_map_is_invertible.
+  Variables A B C D : Type.
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+  Hypothesis decD : forall x y : D, {x = y} + {x <> y}.
+  Variable p : A -> B.
+  Variable q : C -> D.
+  Variable f : nat_map p q.
+
+  Variable a0 : A.
+
+  Local Fixpoint bot_map (l : list A) (d : D) : B :=
+    match l with
+    | nil => p a0
+    | a :: l' => match decD (nm_bot f (p a)) d with
+                 | left _ => p a
+                 | right _ => bot_map l' d
+                 end
+    end.
+
+  Local Lemma bot_map_if_in d l
+    : In d (map (compose (nm_bot f) p) l) ->
+      nm_bot f (bot_map l d) = d.
+  Proof.
+    induction l as [ | a l IH ]; try contradiction.
+    unfold bot_map; fold bot_map.
+    destruct (decD (nm_bot f (p a)) d); auto.
+    rewrite map_cons.
+    destruct 1; tauto.
+  Qed.
+
+  Local Lemma in_map_compose_if c l
+    : SurjectiveProj f -> FullProj p l ->
+      In (q c) (map (compose (nm_bot f) p) l).
+  Proof.
+    intros surjH fullH.
+    specialize (surjH c).
+    destruct surjH as [ a natH ]; rewrite <- natH; clear natH c.
+    (* So we need to use fullness of l wrt p. This gives us some
+       element of l that maps down to the same element as [a] does.
+     *)
+    specialize (fullH a); unfold InProj in fullH.
+    rewrite in_map_iff in fullH.
+    destruct fullH as [ a' H ]; destruct H as [ peqH inH ].
+    rewrite map_compose.
+    apply in_map.
+    rewrite <- peqH.
+    apply in_map; assumption.
+  Qed.
+
+  Local Definition top_map (l : list A) (c : C) : A :=
+    proj_section decB p a0 (bot_map l (q c)) l.
+
+  Local Lemma bot_map_in_proj (l : list A) d
+    : In d (map (compose (nm_bot f) p) l) ->
+      InProj p (bot_map l d) l.
+  Proof.
+    induction l as [ | a l IH ]; auto.
+    unfold bot_map; fold bot_map.
+    intro inH.
+    unfold InProj in *; rewrite map_cons.
+    destruct (decD (nm_bot f (p a)) d) as [ <- | neH ].
+    - apply in_eq.
+    - destruct inH as [ | inH ]; try tauto.
+      apply in_cons; auto.
+  Qed.
+
+  Variable l : list A.
+  Hypothesis surjH : SurjectiveProj f.
+  Hypothesis fullH : FullProj p l.
+
+  Local Lemma bot_map_exists_lift c
+    : exists a, p a = bot_map l (q c) /\ In a l.
+  Proof.
+    rewrite <- in_map_iff.
+    apply bot_map_in_proj.
+    apply in_map_compose_if; auto.
+  Qed.
+
+  Local Lemma inv_is_nat_map : is_nat_map q p (top_map l, bot_map l).
+  Proof.
+    intros c; simpl.
+    unfold top_map.
+    destruct (bot_map_exists_lift c) as [ a H ].
+    destruct H as [ <- inH ].
+    apply full_proj_section_is_section; auto.
+  Qed.
+
+  Local Definition inv_map : nat_map q p :=
+    exist _ (top_map l, bot_map l) inv_is_nat_map.
+
+  Local Lemma inv_map_is_section c
+    : nm_bot (nat_map_comp_h inv_map f) (q c) = q c.
+  Proof.
+    simpl; unfold compose.
+    apply bot_map_if_in.
+    apply in_map_compose_if; auto.
+  Qed.
+
+  Lemma surj_map_is_invertible
+    : exists g : nat_map q p,
+      forall c, nm_bot (nat_map_comp_h g f) (q c) = q c.
+  Proof.
+    eauto using inv_map_is_section.
+  Qed.
+End surj_map_is_invertible.
