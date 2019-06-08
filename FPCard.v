@@ -252,7 +252,7 @@ End inj_same_size.
 
 Arguments fp_inj_same_card_is_surj {A B C D p q} f {n} cardpH cardqH injH decD.
 
-Section inj_endo_is_surj.
+Section inj_endo.
   Variables A B : Type.
   Variable p : A -> B.
   Variable f : nat_map p p.
@@ -266,6 +266,42 @@ Section inj_endo_is_surj.
     destruct (fp_card_exists p decB finH) as [ n cardH ].
     apply (fp_inj_same_card_is_surj f cardH cardH injH decB).
   Qed.
-End inj_endo_is_surj.
+
+  Variable a0 : A.
+
+  Local Definition g {l} (fullH : FullProj p l) : nat_map p p :=
+    surj_nat_map_right_inverse decB decB a0 inj_endo_is_surj fullH.
+
+  Local Lemma g_is_right_inv
+        {l} (fullH : FullProj p l)
+    : forall a, nm_bot (nat_map_comp_h (g fullH) f) (p a) = p a.
+  Proof.
+    apply (surj_map_is_invertible decB decB a0 inj_endo_is_surj fullH).
+  Qed.
+
+  Local Lemma g_is_left_inv
+        {l} (fullH : FullProj p l)
+    : forall a, nm_bot (nat_map_comp_h f (g fullH)) (p a) = p a.
+  Proof.
+    intro a.
+    unfold inj_nat_map in injH.
+    pose proof (g_is_right_inv fullH (nm_top f a)) as gfH.
+    rewrite nat_map_nat in gfH.
+    rewrite <- nm_bot_comp_h in gfH.
+    rewrite nm_comp_h_assoc_bot in gfH.
+    rewrite nm_bot_comp_h in gfH.
+    rewrite <- nat_map_nat in gfH.
+    rewrite <- nat_map_nat.
+    exact (injH _ _ gfH).
+  Qed.
+
+  Lemma inj_endo_is_invertible : exists h : nat_map p p, inv_bottom f h.
+  Proof.
+    destruct finH as [ l fullH ].
+    exists (g fullH).
+    constructor; auto using g_is_right_inv, g_is_left_inv.
+  Qed.
+End inj_endo.
 
 Arguments inj_endo_is_surj {A B p} f injH decB finH.
+Arguments inj_endo_is_invertible {A B p} f injH decB finH a0.

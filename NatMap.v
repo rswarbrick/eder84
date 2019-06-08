@@ -130,3 +130,48 @@ Definition inj_nat_map
            (f : nat_map p q) :=
   forall a a',
     nm_bot f (p a) = nm_bot f (p a') -> p a = p a'.
+
+Definition inv_bottom
+           (A B C D : Type) (p : A -> B) (q : C -> D)
+           (f : nat_map p q) (g : nat_map q p) :=
+  (forall a : A, nm_bot (nat_map_comp_h f g) (p a) = p a) /\
+  (forall c : C, nm_bot (nat_map_comp_h g f) (q c) = q c).
+
+(*
+  Facts about composing nat maps horizontally.
+*)
+Section nm_pair.
+  Variables A B C D E F : Type.
+  Variable p : A -> D.
+  Variable q : B -> E.
+  Variable r : C -> F.
+
+  Variable f : nat_map p q.
+  Variable g : nat_map q r.
+
+  Lemma nm_bot_comp_h d
+    : nm_bot (nat_map_comp_h f g) d = nm_bot g (nm_bot f d).
+  Proof.
+    tauto.
+  Qed.
+End nm_pair.
+
+Section nm_triple.
+  Variables A0 A1 A2 A3 : Type.
+  Variables B0 B1 B2 B3 : Type.
+  Variable p0 : A0 -> B0.
+  Variable p1 : A1 -> B1.
+  Variable p2 : A2 -> B2.
+  Variable p3 : A3 -> B3.
+
+  Variable f : nat_map p0 p1.
+  Variable g : nat_map p1 p2.
+  Variable h : nat_map p2 p3.
+
+  Lemma nm_comp_h_assoc_bot b0
+    : nm_bot (nat_map_comp_h f (nat_map_comp_h g h)) b0 =
+      nm_bot (nat_map_comp_h (nat_map_comp_h f g) h) b0.
+  Proof.
+    tauto.
+  Qed.
+End nm_triple.

@@ -717,21 +717,15 @@ Section surj_map_is_invertible.
     apply full_proj_section_is_section; auto.
   Qed.
 
-  Local Definition inv_map : nat_map q p :=
+  Definition surj_nat_map_right_inverse : nat_map q p :=
     exist _ (top_map l, bot_map l) inv_is_nat_map.
 
-  Local Lemma inv_map_is_section c
-    : nm_bot (nat_map_comp_h inv_map f) (q c) = q c.
+  Lemma surj_map_is_invertible c
+    : nm_bot (nat_map_comp_h surj_nat_map_right_inverse f) (q c) = q c.
   Proof.
     simpl; unfold compose.
     apply bot_map_if_in.
     apply in_map_compose_if; auto.
   Qed.
 
-  Lemma surj_map_is_invertible
-    : exists g : nat_map q p,
-      forall c, nm_bot (nat_map_comp_h g f) (q c) = q c.
-  Proof.
-    eauto using inv_map_is_section.
-  Qed.
 End surj_map_is_invertible.
