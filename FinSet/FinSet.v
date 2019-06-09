@@ -24,7 +24,7 @@ Require Import Lists.List.
 Require Import Program.Basics.
 Require Import Logic.FinFun.
 
-Require Import SymbComp.NatMap.
+Require Import Top.FinSet.NatMap.
 
 Set Implicit Arguments.
 

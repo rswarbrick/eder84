@@ -7,9 +7,9 @@
 Require Import Lists.List.
 Require Import Program.Basics.
 
-Require Import SymbComp.NatMap.
-Require Import SymbComp.FinSet.
-Require Import SymbComp.FinMod.
+Require Import Top.FinSet.NatMap.
+Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.FinMod.
 
 
 Set Implicit Arguments.

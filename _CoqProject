@@ -1,13 +1,16 @@
-FPCard.v
-InjList.v
-Distinct.v
-Remove.v
-Generality.v
-Term.v
-VecUtils.v
-ListMod.v
-FinMod.v
-FinSet.v
-NatMap.v
+FinSet/FPCard.v
+FinSet/InjList.v
+FinSet/Distinct.v
+FinSet/Remove.v
+FinSet/ListMod.v
+FinSet/FinMod.v
+FinSet/FinSet.v
+FinSet/NatMap.v
 
--Q . SymbComp
+Terms/Generality.v
+Terms/Term.v
+Terms/VecUtils.v
+
+-Q Terms Top.Terms
+-Q FinSet Top.FinSet
+

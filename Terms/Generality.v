@@ -1,7 +1,7 @@
 Require Import Lists.List.
 Require Import Program.Basics.
 
-Require Import SymbComp.Term.
+Require Import Top.Terms.Term.
 
 (* First, we have to define the "more general than" relation on
    substitutions, abbreviated to smg.

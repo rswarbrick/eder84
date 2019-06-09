@@ -5,9 +5,10 @@ Require Vectors.Fin.
 Require Vectors.VectorDef.
 Require Import Program.Basics.
 
-Require Import SymbComp.VecUtils.
-Require Import SymbComp.FinMod.
-Require Import SymbComp.ListMod.
+Require Import Top.Terms.VecUtils.
+
+Require Import Top.FinSet.FinMod.
+Require Import Top.FinSet.ListMod.
 
 Definition vec := VectorDef.t.
 

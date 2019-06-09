@@ -1,7 +1,7 @@
 Require Import Lists.List.
 Require Import Bool.Bool.
 
-Require Import SymbComp.Remove.
+Require Import Top.FinSet.Remove.
 
 (*
   Facts about lists with no repeated elements

@@ -21,8 +21,8 @@ Require Import Logic.Decidable.
 Require Import Program.Basics.
 Require Import Bool.
 
-Require Import SymbComp.NatMap.
-Require Import SymbComp.FinSet.
+Require Import Top.FinSet.NatMap.
+Require Import Top.FinSet.FinSet.
 
 Set Implicit Arguments.
 

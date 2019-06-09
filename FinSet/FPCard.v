@@ -13,10 +13,10 @@ Require Import Lists.List.
 Require Import PeanoNat.
 Require Import Bool.
 
-Require Import SymbComp.FinSet.
-Require Import SymbComp.NatMap.
-Require Import SymbComp.Distinct.
-Require Import SymbComp.InjList.
+Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.NatMap.
+Require Import Top.FinSet.Distinct.
+Require Import Top.FinSet.InjList.
 
 (** * Cardinality definition
 

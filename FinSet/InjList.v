@@ -1,8 +1,8 @@
 Require Import Lists.List.
 Require Import Coq.Arith.PeanoNat.
 
-Require Import SymbComp.Distinct.
-Require Import SymbComp.Remove.
+Require Import Top.FinSet.Distinct.
+Require Import Top.FinSet.Remove.
 
 (**
 
