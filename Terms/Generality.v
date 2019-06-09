@@ -30,7 +30,8 @@ Section smg.
     exists (comp_subst rho_st rho_rs).
     intro v.
     rewrite <- (comp_subst_assoc V F a).
-    rewrite (comp_subst_ex2 V F a v rsH).
+    assert (eqH : forall v : V, rho_st v = rho_st v); auto.
+    rewrite (comp_subst_ex V F a v eqH rsH).
     rewrite stH.
     exact eq_refl.
   Qed.

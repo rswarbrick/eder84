@@ -213,6 +213,57 @@ Section Term.
     auto using vec_map_equal.
   Qed.
 
+  (** As you would hope, [varTerm] is a left and right identity for
+      [comp_subst]. *)
+
+  Lemma comp_subst_idl {sigma v} : comp_subst varTerm sigma v = sigma v.
+  Proof.
+    unfold comp_subst, compose.
+    unfold subst_endo at 2.
+    rewrite subst_endo_varTerm.
+    exact eq_refl.
+  Qed.
+
+  Lemma comp_subst_idr {sigma v} : comp_subst sigma varTerm v = sigma v.
+  Proof.
+    unfold comp_subst, compose, subst_endo.
+    exact eq_refl.
+  Qed.
+
+  (** Also, unsurprisingly, [comp_subst] is associative. *)
+
+  Lemma comp_subst_assoc {s1 s2 s3 v}
+    : comp_subst s1 (comp_subst s2 s3) v = comp_subst (comp_subst s1 s2) s3 v.
+  Proof.
+    unfold comp_subst, compose; simpl.
+    generalize (s3 v); clear s3 v.
+    apply Term_ind'; try reflexivity.
+    intros f ts IH.
+    unfold subst_endo at 2; fold subst_endo.
+    unfold subst_endo at 1; fold subst_endo.
+    unfold subst_endo at 3; fold subst_endo.
+    apply f_equal.
+    rewrite vec_map_map.
+    apply vec_map_equal.
+    exact IH.
+  Qed.
+
+  (** A technical lemma about extensionality. If we have two
+      factorisations where the factors are extensionally equal, then the
+      composite maps must be too. *)
+
+  Lemma comp_subst_ex {r r' s s'} (v : V)
+    : (forall v, r v = r' v) ->
+      (forall v, s v = s' v) ->
+      comp_subst r s v = comp_subst r' s' v.
+  Proof.
+    intros rH sH.
+    unfold comp_subst, compose.
+    rewrite (subst_endo_ex sH).
+    rewrite (subst_endo_ex rH).
+    exact eq_refl.
+  Qed.
+
   (** * Finite substitutions
 
       Now we get to an important definition: [fin_subst]. Eder is only
@@ -231,9 +282,11 @@ Section Term.
     apply fin_mod_i.
   Qed.
 
-  (* Composition is more of a faff. The substitution that induces the
-     composition of two induced endomorphisms is actually easiest to
-     define by concatenating lists *)
+  (** It's a bit more difficult to show that [fin_subst] maps are
+      closed under composition (using [comp_subst]). I think that the
+      substitution that induces the composition of two induced
+      endomorphisms is actually easiest to define by concatenating
+      lists, so we start in terms of list maps. *)
 
   Section fin_comp_subst.
     Variables sigma tau : V -> Term.
@@ -245,14 +298,15 @@ Section Term.
     Hypothesis sH : forall v : V, sigma v = list_map decV varTerm sl v.
     Hypothesis tH : forall v : V, tau v = list_map decV varTerm tl v.
 
-    (* A list inducing the correct correct composed map ([compose
-       sigma tau]) is given by first mapping all the variables to
-       where tau would send them and then applying the induced map
-       from sigma to the resulting term.
+    (** A list inducing the correct correct composed map ([compose
+        sigma tau]) is given by first mapping all the variables to
+        where [tau] would send them and then applying the induced map
+        from [sigma] to the resulting term.
 
-       Variables that weren't moved by tau get mapped by sigma, which
-       we can express by shoving them to the end of the list.
-     *)
+        Variables that weren't moved by [tau] get mapped by [sigma],
+        which we can express by shoving them to the end of the
+        list. *)
+
     Local Definition stl : list (V * Term) :=
       app (map (fun p => (fst p, subst_endo sigma (snd p))) tl)
           sl.
@@ -265,7 +319,7 @@ Section Term.
       set (pmap := (fun p : V * Term => (fst p, subst_endo sigma (snd p)))).
       revert tau tH.
       induction tl as [ | p tl' IH ].
-      - intros; rewrite tH; clear tH; simpl; auto.
+      - intros; rewrite tH; simpl; auto.
       - intros tau tH.
         clear tl; rename tl' into tl.
         rewrite (map_cons pmap p tl), <- app_comm_cons.
@@ -284,6 +338,11 @@ Section Term.
     Qed.
   End fin_comp_subst.
 
+  (** Since we worked in terms of list maps, we now must use the
+      correspondence between those and finite mods to conclude that
+      the composition of two finite substitutions is itself finite
+      (assuming that equality of terms is decidable) *)
+
   Lemma fin_subst_comp sigma tau
     : (forall x y : V, {x = y} + {x <> y}) ->
       (forall x y : F, {x = y} + {x <> y}) ->
@@ -299,59 +358,15 @@ Section Term.
     apply (fin_mod_list_map decV varTerm decT).
   Qed.
 
-  Lemma comp_subst_idl {sigma v} : comp_subst varTerm sigma v = sigma v.
-  Proof.
-    unfold comp_subst, compose.
-    unfold subst_endo at 2.
-    rewrite subst_endo_varTerm.
-    exact eq_refl.
-  Qed.
-
-  Lemma comp_subst_idr {sigma v} : comp_subst sigma varTerm v = sigma v.
-  Proof.
-    unfold comp_subst, compose, subst_endo.
-    exact eq_refl.
-  Qed.
-
-  Lemma comp_subst_assoc {s1 s2 s3 v}
-    : comp_subst s1 (comp_subst s2 s3) v = comp_subst (comp_subst s1 s2) s3 v.
-  Proof.
-    unfold comp_subst, compose; simpl.
-    generalize (s3 v); clear s3 v.
-    apply Term_ind'; try reflexivity.
-    intros f ts IH.
-    unfold subst_endo at 2; fold subst_endo.
-    unfold subst_endo at 1; fold subst_endo.
-    unfold subst_endo at 3; fold subst_endo.
-    apply f_equal.
-    rewrite vec_map_map.
-    apply vec_map_equal.
-    exact IH.
-  Qed.
+  (** Finally, we show that restricting a finite substitution to
+      variables satisfying some predicate doesn't stop it being
+      finite. *)
 
   Lemma fin_subst_restrict {s P} (decP : forall v : V, {P v} + {~ P v})
     : fin_subst s -> fin_subst (restrict_map varTerm P decP s).
   Proof.
     unfold fin_subst.
     apply restrict_preserves_fin_mod.
-  Qed.
-
-  Lemma comp_subst_ex1 {r r' s} (v : V)
-    : (forall v, r v = r' v) -> comp_subst r s v = comp_subst r' s v.
-  Proof.
-    intro eqH.
-    unfold comp_subst, compose.
-    rewrite (subst_endo_ex eqH).
-    tauto.
-  Qed.
-
-  Lemma comp_subst_ex2 {r s s'} (v : V)
-    : (forall v, s v = s' v) -> comp_subst r s v = comp_subst r s' v.
-  Proof.
-    intro eqH.
-    unfold comp_subst, compose.
-    rewrite (subst_endo_ex eqH).
-    tauto.
   Qed.
 
 End Term.
