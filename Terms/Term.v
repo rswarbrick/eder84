@@ -1,3 +1,9 @@
+(** This library describes a [Term], which is the general form of an
+    expression considered in Eder's paper. This is essentially a tree
+    of function applications and variable instances. It also describes
+    a [fin_subst] (called a substitution in Eder's paper), which is a
+    rule for substituting terms for variables in a term. *)
+
 Require Import Lists.List.
 Require Import Logic.Eqdep_dec.
 Require Import PeanoNat.
@@ -6,11 +12,17 @@ Require Vectors.VectorDef.
 Require Import Program.Basics.
 
 Require Import Top.Terms.VecUtils.
-
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.ListMod.
 
 Definition vec := VectorDef.t.
+
+(** * Terms
+
+    When talking about terms, we fix types [V] and [F]. Elements of
+    [V] are variable names and elements of [F] should be thought of as
+    functions or operators. There is also an arity function, [a],
+    which gives the arity of each function. *)
 
 Section Term.
   Variable V : Type.
@@ -20,6 +32,11 @@ Section Term.
   Inductive Term : Type :=
   | varTerm : V -> Term
   | funTerm (f : F) (ts : vec Term (a f)) : Term.
+
+  (** When defining a function on terms, you need an induction
+      rule. We use vectors to represent the rose tree structure of a
+      term and Coq's automatic induction rule isn't strong enough, so
+      we define a better one here. *)
 
   Section Term_ind'.
     Variable P : Term -> Prop.
@@ -37,6 +54,19 @@ Section Term.
                              (a f) ts)
       end.
   End Term_ind'.
+
+  (** We also define a structural recursion rule for [Term]
+      objects. This is a little more finicky because it lets us
+      recurse over the structure of the function vectors as well as
+      the term itself.
+
+      The [varH] hypothesis says that [P] holds for all terms that are
+      just a variable. The [funH] hypothesis says that if we know [Q]
+      holds for a vector of terms (of the correct length), then [P]
+      will hold when we use them to make arguments for a function
+      term. To show that [Q] ever holds, we then need to know that it
+      holds for the empty vector ([qnilH]) and that it holds for a
+      cons if [P] holds for the item we're adding. *)
 
   Section Term_rect'.
     Variable P : Term -> Type.
@@ -65,8 +95,11 @@ Section Term.
     intros eqH. inversion eqH.
   Qed.
 
+  (** The [decTerm] fixpoint shows that equality in [Term] is
+      decidable if it is decidable for the functions and variable
+      names. *)
+
   Section DecTerm.
-    (* Equality in Term is decidable if it is in V and F *)
     Hypothesis decV : forall x y : V, {x = y} + {x <> y}.
     Hypothesis decF : forall x y : F, {x = y} + {x <> y}.
 
@@ -98,21 +131,28 @@ Section Term.
     Qed.
   End DecTerm.
 
-  (* Eder's paper talks about substitutions as if they are
-     endomorphisms on Term, but he is only interested in the
-     endomorphisms that come about from actual substitutions: maps
-     from variables to terms which may or may not themselves be
-     variables.
+  (** * Substitutions
 
-     Let's start by defining the induced endomorphism on Term that
-     comes from a substitution.  *)
+      Eder's paper talks about substitutions as if they are
+      endomorphisms on Term, but he is only interested in the
+      endomorphisms that come about from actual substitutions: maps
+      from variables to terms which may or may not themselves be
+      variables.
+
+      Let's start by defining the induced endomorphism on Term that
+      comes from a substitution. *)
+
   Fixpoint subst_endo (s : V -> Term) (t : Term) : Term :=
     match t with
     | varTerm v => s v
     | funTerm f ts => funTerm f (VectorDef.map (subst_endo s) ts)
     end.
 
-  (* The induced endomorphism from varTerm is the identity *)
+  (** One map from [V] to [Term] is [varTerm] (the [Term] constructor
+      for variable names). This should induce the identity. The point
+      is that the induced endomorphism is exactly filling in each "v"
+      with "v" again.  *)
+
   Lemma subst_endo_varTerm {t}
     : subst_endo varTerm t = t.
   Proof.
@@ -128,6 +168,13 @@ Section Term.
     exact eq_refl.
   Qed.
 
+  (** Another fact we might want to know about these induced
+      endomorphisms is extensionality. That is, if two substitutions
+      have the same values on all of [V] then their induced
+      endomorphisms have the same values on all of [Term]. (This sort
+      of messing around is needed because functions aren't extensional
+      in Coq). *)
+
   Lemma subst_endo_ex {s s' t}
     : (forall v, s v = s' v) -> subst_endo s t = subst_endo s' t.
   Proof.
@@ -141,45 +188,52 @@ Section Term.
       exact allH.
   Qed.
 
-  (* Eder is only interested in substitutions that map only finitely
-     many variables differently from [varTerm] *)
-  Definition fin_subst := fin_mod varTerm.
+  (** Obviously, we can't compose substitutions directly (because they
+      are maps [V -> Term]). However, we can compose their induced
+      endomorphisms and then restrict back to variables by composing
+      with [varTerm]. *)
 
-  (* The induced endomorphism from varTerm (the identity) is obviously
-     a finite substitution *)
-  Lemma fin_subst_varTerm : fin_subst varTerm.
+  Definition comp_subst (sigma tau : V -> Term) :=
+    compose (compose (subst_endo sigma) (subst_endo tau)) varTerm.
+
+  (** Fortunately, given the name, [comp_subst] is indeed the right
+      notion of composition of substitutions. In fact, if you compose
+      the induced endomorphisms from two substitutions, you get the
+      same thing as if you use [comp_subst] to compose the
+      substitutions and then induce the endomorphism. *)
+
+  Lemma compose_subst_endo (sigma tau : V -> Term) (t : Term)
+    : compose (subst_endo sigma) (subst_endo tau) t =
+      subst_endo (comp_subst sigma tau) t.
   Proof.
-    unfold fin_subst.
-    apply fin_mod_i.
+    revert t; apply Term_ind'; try tauto.
+    intros f ts IH.
+    unfold compose, subst_endo; fold subst_endo; apply f_equal.
+    rewrite vec_map_map.
+    auto using vec_map_equal.
   Qed.
 
-  (* Let's prove that the composition of two induced endomorphisms is
-     itself induced. *)
-  Definition var_restriction (f : Term -> Term) (v : V) : Term :=
-    f (varTerm v).
+  (** * Finite substitutions
 
-  Lemma comp_subst_is_subst (sigma tau : V -> Term) (t : Term)
-    : compose (subst_endo sigma) (subst_endo tau) t =
-      subst_endo (var_restriction
-                    (compose (subst_endo sigma) (subst_endo tau))) t.
+      Now we get to an important definition: [fin_subst]. Eder is only
+      interested in substitutions that map only finitely many
+      variables differently from [varTerm]. In our development, this
+      means that it should be a finite modification of [varTerm]. *)
+
+  Definition fin_subst := fin_mod varTerm.
+
+  (** We can construct our first [fin_subst] from varTerm. Since this
+      is a trivial modification of [varTerm], it definitely satisfies
+      the definition. *)
+
+  Lemma fin_subst_varTerm : fin_subst varTerm.
   Proof.
-    revert t; apply Term_ind'.
-    - intros; unfold compose, var_restriction; simpl; exact eq_refl.
-    - intros f ts IH.
-      unfold compose, subst_endo; fold subst_endo.
-      apply f_equal.
-      rewrite vec_map_map.
-      fold (compose (subst_endo sigma) (subst_endo tau)).
-      apply vec_map_equal.
-      exact IH.
+    apply fin_mod_i.
   Qed.
 
   (* Composition is more of a faff. The substitution that induces the
      composition of two induced endomorphisms is actually easiest to
      define by concatenating lists *)
-
-  Definition comp_subst (sigma tau : V -> Term) :=
-    compose (compose (subst_endo sigma) (subst_endo tau)) varTerm.
 
   Section fin_comp_subst.
     Variables sigma tau : V -> Term.
