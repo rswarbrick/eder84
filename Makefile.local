@@ -1,1 +1,1 @@
-COQDOCEXTRAFLAGS := -p "\usepackage{tikz-cd}"
+COQDOCFLAGS += -p "\usepackage{tikz-cd}"
