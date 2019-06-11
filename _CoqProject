@@ -4,6 +4,7 @@ FinSet/Distinct.v
 FinSet/Remove.v
 FinSet/ListMod.v
 FinSet/FinMod.v
+FinSet/FinModComp.v
 FinSet/FinSet.v
 FinSet/NatMap.v
 

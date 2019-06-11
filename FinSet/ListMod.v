@@ -217,6 +217,27 @@ Section decA.
         apply (fin_mod_upd_map); tauto.
     Qed.
 
+    Lemma list_map_app_in l1 l2 a
+      : In a (map fst l1) -> list_map (l1 ++ l2) a = list_map l1 a.
+    Proof.
+      induction l1 as [ | p l1 IH ]; try contradiction.
+      destruct p as [ pa pb ]; simpl.
+      destruct (decA pa a) as [ -> | neH ].
+      - rewrite ! upd_map_at; auto.
+      - destruct 1 as [ | inH ]; try contradiction.
+        specialize (IH inH); clear inH.
+        rewrite ! upd_map_not_at; auto.
+    Qed.
+
+    Lemma list_map_app_not_in l1 l2 a
+      : ~ In a (map fst l1) -> list_map (l1 ++ l2) a = list_map l2 a.
+    Proof.
+      induction l1 as [ | p l1 IH ]; auto.
+      destruct p as [ pa pb ]; simpl.
+      destruct (decA pa a) as [ -> | neH ]; try tauto.
+      rewrite ! upd_map_not_at; auto.
+    Qed.
+
     Section FinIsList.
       Variable f : A -> B.
       Hypothesis finH : fin_mod i f.
