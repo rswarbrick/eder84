@@ -100,14 +100,13 @@ Section fm_precomp.
   Qed.
 
   Variable g' : B -> C.
-  Hypothesis fmH : fin_mod g g'.
-
   Hypothesis finH :
     forall b : B, g' b <> g b ->
                   exists l : list A, forall a : A, f a = b <-> In a l.
 
-  Lemma fin_mod_precomp : fin_mod (compose g f) (compose g' f).
+  Lemma fin_mod_precomp : fin_mod g g' -> fin_mod (compose g f) (compose g' f).
   Proof.
+    intro fmH.
     destruct (fin_mod_is_list_map decB decC fmH) as [ lbc bcH ].
     destruct bcH as [ bcH neqH ].
     set (P b := g' b <> g b).
@@ -120,4 +119,4 @@ Section fm_precomp.
   Qed.
 End fm_precomp.
 
-Arguments fin_mod_precomp {A B C} decA decB decC f {g g'} fmH finH.
+Arguments fin_mod_precomp {A B C} decA decB decC f {g g'} finH.
