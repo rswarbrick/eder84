@@ -63,11 +63,13 @@ Section fm_precomp.
   Variable f : A -> B.
   Variable g : B -> C.
 
-  Hypothesis finH :
-    forall b : B, exists l : list A, forall a : A, f a = b <-> In a l.
-
-  Local Lemma exists_pre_list (lbc : list (B * C))
-    : exists lac : list (A * C),
+  Local Lemma exists_pre_list
+        (lbc : list (B * C)) (P : B -> Prop)
+        (finH : forall b : B, P b ->
+                              exists l : list A,
+                                forall a : A, f a = b <-> In a l)
+    : (forall p, In p lbc -> P (fst p)) ->
+      exists lac : list (A * C),
       forall a : A,
         list_map decA (compose g f) lac a =
         compose (list_map decB g lbc) f a.
@@ -76,9 +78,12 @@ Section fm_precomp.
     - exists nil; auto.
     - unfold compose at 2.
       unfold list_map at 2; fold (list_map decB g lbc).
-      destruct IH as [ lac IH ].
       destruct bc as [ b c ].
-      destruct (finH b) as [ la laH ].
+      intro pH.
+      assert (pIH : forall p, In p lbc -> P (fst p));
+        auto with datatypes.
+      destruct (finH b (pH (b, c) (in_eq _ _))) as [ la laH ]; clear pH.
+      specialize (IH pIH); clear pIH; destruct IH as [ lac IH ].
       exists (const_mod c la ++ lac).
       intro a; specialize (IH a).
       destruct (laH a) as [ laH0 laH1 ]; clear laH.
@@ -94,12 +99,19 @@ Section fm_precomp.
           auto using not_in_map_fst_const_mod.
   Qed.
 
-  Lemma fin_mod_precomp g'
-    : fin_mod g g' -> fin_mod (compose g f) (compose g' f).
+  Variable g' : B -> C.
+  Hypothesis fmH : fin_mod g g'.
+
+  Hypothesis finH :
+    forall b : B, g' b <> g b ->
+                  exists l : list A, forall a : A, f a = b <-> In a l.
+
+  Lemma fin_mod_precomp : fin_mod (compose g f) (compose g' f).
   Proof.
-    intro fmH.
     destruct (fin_mod_is_list_map decB decC fmH) as [ lbc bcH ].
-    destruct (exists_pre_list lbc) as [ lac acH ].
+    destruct bcH as [ bcH neqH ].
+    set (P b := g' b <> g b).
+    destruct (exists_pre_list lbc P finH neqH) as [ lac acH ].
     enough (H: forall a : A,
                list_map decA (compose g f) lac a = compose g' f a).
     - apply (fin_mod_ex (compose g' f) H), fin_mod_list_map; auto.
@@ -108,4 +120,4 @@ Section fm_precomp.
   Qed.
 End fm_precomp.
 
-Arguments fin_mod_precomp {A B C} decA decB decC f {g} finH {g'}.
+Arguments fin_mod_precomp {A B C} decA decB decC f {g g'} fmH finH.

@@ -353,6 +353,8 @@ Section Term.
     set (decT := (decTerm decV decF)).
     destruct (fin_mod_is_list_map decV decT fmS) as [ sl slH ].
     destruct (fin_mod_is_list_map decV decT fmT) as [ tl tlH ].
+    destruct slH as [ slH _ ].
+    destruct tlH as [ tlH _ ].
     unfold comp_subst, compose.
     apply (fin_mod_ex _ (stl_map_v sigma tau sl tl decV slH tlH)).
     apply (fin_mod_list_map decV varTerm decT).

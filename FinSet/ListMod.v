@@ -263,32 +263,54 @@ Section decA.
         - intro. exact IH.
       Qed.
 
+      Local Lemma fm_graph_is_list_map (l : list (mod_dom i f))
+        : FullProj (md_elt (f := f)) l ->
+          forall a,
+            f a = list_map (list_graph (map (md_elt (f := f)) l)) a.
+      Proof.
+        unfold FullProj; intros fullH a.
+        set (ul := map (md_elt (f := f)) l).
+        case (decB (f a) (i a)).
+        + intro eqA; rewrite (ev_list_graph_off_dom ul eqA); tauto.
+        + intro neH.
+          specialize (fullH (exist _ a neH)).
+          rename fullH into inProjH.
+          induction l as [ | d l IH ]; try contradiction.
+          simpl in inProjH.
+          unfold ul. rewrite map_cons.
+          rewrite list_map_list_graph_cons.
+          destruct (decA (md_elt d) a) as [ deqH | dneH ].
+          * rewrite deqH, upd_map_at; exact eq_refl.
+          * simpl in IH.
+            destruct inProjH; try contradiction.
+            specialize (IH H); clear H.
+            rewrite (upd_map_not_at _ _ (not_eq_sym dneH)).
+            apply IH.
+      Qed.
+
+      Local Lemma in_md_elt_graph_imp_neq p (l : list (mod_dom i f))
+        : In p (list_graph (map (md_elt (f := f)) l)) ->
+          f (fst p) <> i (fst p).
+      Proof.
+        induction l as [ | md l IH ]; try contradiction.
+        revert IH.
+        unfold list_graph.
+        rewrite !map_map, map_cons.
+        intro IH.
+        destruct 1 as [ <- | inH ]; auto.
+        unfold md_elt; apply proj2_sig.
+      Qed.
+
       Lemma fin_mod_is_list_map
-        : exists l, forall a, f a = list_map l a.
+        : exists l,
+          (forall a, f a = list_map l a) /\
+          (forall p, In p l -> f (fst p) <> i (fst p)).
       Proof.
         unfold fin_endo in finH.
         unfold FiniteProj in finH.
         destruct finH as [ l fullH ]; clear finH.
-        set (ul := map (md_elt (f := f)) l).
-        exists (list_graph ul).
-        intro a.
-        unfold FullProj in fullH.
-        - case (decB (f a) (i a)).
-          + intro eqA; rewrite (ev_list_graph_off_dom ul eqA); tauto.
-          + intro neH.
-            specialize (fullH (exist _ a neH)).
-            rename fullH into inProjH.
-            induction l as [ | d l IH ]; try contradiction.
-            simpl in inProjH.
-            unfold ul. rewrite map_cons.
-            rewrite list_map_list_graph_cons.
-            destruct (decA (md_elt d) a) as [ deqH | dneH ].
-            * rewrite deqH, upd_map_at; exact eq_refl.
-            * simpl in IH.
-              destruct inProjH; try contradiction.
-              specialize (IH H); clear H.
-              rewrite (upd_map_not_at _ _ (not_eq_sym dneH)).
-              apply IH.
+        exists (list_graph (map (md_elt (f := f)) l)).
+        eauto using fm_graph_is_list_map, in_md_elt_graph_imp_neq.
       Qed.
     End FinIsList.
   End ListMap.
