@@ -61,6 +61,7 @@ Arguments mod_elt {A B} i f.
 Arguments mod_dom {A B} i f.
 Arguments md_elt {A B i f} d.
 Arguments fin_mod {A B} i f.
+Arguments fin_mod_i {A B} i.
 
 Definition mod_dom_cast {A B} {i j f g : A -> B} (d : mod_dom i f)
   : i (md_elt d) = j (md_elt d) ->
