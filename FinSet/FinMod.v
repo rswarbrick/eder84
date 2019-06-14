@@ -24,8 +24,6 @@ Require Import Bool.
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.FinSet.
 
-Set Implicit Arguments.
-
 (** * Basic definitions
 
     We start by fixing a underlying sets, [A] and [B], and a base map
@@ -57,32 +55,57 @@ Section FinMod.
     unfold mod_elt in H.
     contradiction.
   Qed.
-
-  Definition mod_dom_cast {f g} (H : forall a, f a = g a) (d : mod_dom f)
-    : mod_dom g := match d with
-                   | exist _ a H' =>
-                     exist _ a (eq_ind (f a) (fun b => b <> i a) H' _ (H a))
-                   end.
-
-  Lemma fin_mod_ex f g
-    : (forall a : A, f a = g a) -> fin_mod f -> fin_mod g.
-  Proof.
-    unfold fin_mod.
-    intros eqH finF.
-    assert (natH : is_nat_map (md_elt (f := f)) (md_elt (f := g))
-                              (mod_dom_cast eqH, id));
-      try (unfold is_nat_map; intro a; destruct a; auto).
-    apply (finite_surj (m := exist _ _ natH) finF).
-    unfold SurjectiveProj.
-    intro d'; destruct d' as [ a gaH ]; simpl; unfold id.
-    clear natH.
-    specialize (eqH a).
-    assert (faH : mod_elt f a);
-      try (unfold mod_elt in *; rewrite eqH; tauto).
-    exists (exist _ a faH).
-    tauto.
-  Qed.
 End FinMod.
+
+Arguments mod_elt {A B} i f.
+Arguments mod_dom {A B} i f.
+Arguments md_elt {A B i f} d.
+Arguments fin_mod {A B} i f.
+
+Definition mod_dom_cast {A B} {i j f g : A -> B} (d : mod_dom i f)
+  : i (md_elt d) = j (md_elt d) ->
+    f (md_elt d) = g (md_elt d) -> mod_dom j g.
+  refine (match d with
+          | exist _ a H' =>
+            fun ijH fgH => exist _ a _
+          end).
+  unfold mod_elt in H'.
+  simpl in ijH, fgH.
+  unfold mod_elt.
+  rewrite <- fgH, <- ijH.
+  exact H'.
+Defined.
+
+Lemma md_elt_mod_dom_cast {A B} {i j f g : A -> B} {d}
+      (ijH : i (md_elt d) = j (md_elt d))
+      (fgH : f (md_elt d) = g (md_elt d))
+  : md_elt (mod_dom_cast d ijH fgH) = md_elt d.
+Proof.
+  destruct d. auto.
+Qed.
+
+Lemma fin_mod_ex {A B : Type} (i j f g : A -> B)
+  : (forall a : A, i a = j a) ->
+    (forall a : A, f a = g a) ->
+    fin_mod i f -> fin_mod j g.
+Proof.
+  intros ijH fgH fmH.
+  destruct fmH as [ fl fullH ].
+  exists (map (fun df =>
+                 mod_dom_cast df (ijH (md_elt df)) (fgH (md_elt df))) fl).
+  intro dg.
+  specialize (fullH (mod_dom_cast dg
+                                  (sym_eq (ijH (md_elt dg)))
+                                  (sym_eq (fgH (md_elt dg))))).
+  rewrite md_elt_mod_dom_cast in fullH.
+  unfold InProj in *.
+  rewrite in_map_iff in fullH.
+  destruct fullH as [ df dfH ].
+  rewrite map_map, in_map_iff.
+  exists df.
+  rewrite md_elt_mod_dom_cast.
+  auto.
+Qed.
 
 (** * Finite endomorphisms
 
@@ -99,134 +122,6 @@ Proof.
   unfold fin_endo.
   apply fin_mod_i.
 Qed.
-
-(** ** Composition
-
-    We'd like to show that the composition of two [fin_endo] maps is
-    itself [fin_endo]. In classical maths, this is pretty easy. The
-    point is that if [compose g f] doesn't fix [a] then we know that
-    either [f a <> a] or [g (f a) <> a] (and we only care about the
-    case when [f a = a], so we're really asserting that [g a <> a]).
-
-    Frankly, we'd probably say "well, obviously" at that point. Being
-    a bit more careful, we might note that this gives us a surjection
-    [dom g + dom f -> dom (compose g f)]. Well, sort of. What we
-    really have is a map [A + A -> A] such that the image of [dom g +
-    dom f] covers [dom (compose g f)]. The pesky problem is that it
-    might be that [g] reverses [f] on some [a].
-
-    The core of the proof ends up with the square
-    % \begin{equation}
-      \begin{tikzcd}
-        \mathrm{option}(\mathrm{dom}\, g + \mathrm{dom}\, f)
-        \arrow[r] \arrow[d] &
-        \mathrm{option}(\mathrm{dom}\, (\mathrm{compose}\, g f)
-        \arrow[d]
-        \\
-        \mathrm{option}(A + A) \arrow[r] &
-        \mathrm{option}(A)
-      \end{tikzcd}
-    \end{equation} %
-    where the map along the top tries to map [a] to itself, corralling
-    the proofs along the way, and maps to [None] if [g (f a) <> a].
-    The left hand surjection is a [FiniteProj] because it's a sum of
-    them and the map is surjective in the right way. Note that we'll
-    need equality in [A] to be decidable in order to actually define
-    the map (otherwise we don't know when elements are in the domain).
- *)
-
-Module FinEndoComp.
-  Section FinEndoComp.
-    Variable A : Type.
-    Hypothesis decA : forall x y : A, {x = y} + { ~ x = y }.
-
-    Variables f g : A -> A.
-    Hypothesis finF : fin_endo f.
-    Hypothesis finG : fin_endo g.
-
-    (** Firstly, we define the four maps in the square and show that it
-      commutes. *)
-
-    Local Definition map_a (a : A) : option (mod_dom id (compose g f)) :=
-      match decA (g (f a)) (id a) with
-      | left _ => None
-      | right neH => Some (exist _ a (fun eqH => neH eqH))
-      end.
-
-    Local Definition proj0 : (mod_dom id g + mod_dom id f) -> (A + A) :=
-      sumf (md_elt (f := g)) (md_elt (f := f)).
-
-    Local Definition proj1 : (mod_dom id (compose g f)) -> A :=
-      md_elt (f := compose g f).
-
-    Local Definition top_map (dd : (mod_dom id g + mod_dom id f))
-      : option (mod_dom id (compose g f)) :=
-      map_a (match dd with
-             | inl dg => md_elt dg
-             | inr df => md_elt df
-             end).
-
-    Local Definition bot_map (aa : (A + A)) : option A :=
-      option_map proj1 (map_a (match aa with
-                               | inl a => a
-                               | inr a => a
-                               end)).
-
-    Local Lemma natH
-      : forall dd, option_map proj1 (top_map dd) = bot_map (proj0 dd).
-    Proof.
-      intro dd; destruct dd; reflexivity.
-    Qed.
-
-    (** Now, let's prove that [proj0] is indeed [FiniteProj]. It turns
-      out that we can do this with a bare proof term: all the work was
-      done in the [SymbComp.FinSet] script. *)
-
-    Local Definition fin_proj0 : FiniteProj proj0 := finite_sum finG finF.
-
-    (** To apply the [finite_surj] lemma, we'll need to prove that the
-      bottom map has the required surjectivity. This is just a finicky
-      case analysis. *)
-
-    Ltac use_decA :=
-      simpl; unfold bot_map, map_a;
-      match goal with
-      | [ |- context [decA ?a ?a'] ] => case (decA a a')
-      | _ => contradiction
-      | _ => reflexivity
-      | _ => simpl
-      end.
-
-    Local Lemma surjH
-      : forall d' : mod_dom id (compose g f),
-        exists dd : mod_dom id g + mod_dom id f,
-          bot_map (proj0 dd) = Some (proj1 d').
-    Proof.
-      intro d'. destruct d' as [ a in_dom_a ].
-      case (decA (f a) a) as [ feqH | fneH ].
-      - case (decA (g (f a)) (f a)) as [ gfeqH | gfneH ].
-        + contradiction in_dom_a; clear in_dom_a.
-          rewrite <- feqH at 2; apply gfeqH.
-        + rewrite feqH in gfneH; rename gfneH into gneH.
-          exists (inl (exist _ a gneH)).
-          repeat use_decA.
-      - exists (inr (exist _ a fneH)).
-        repeat use_decA.
-    Qed.
-
-    (** We finally have all the bits we need to prove the theorem we
-      wanted: that composition preserves the [fin_endo] property.
-     *)
-
-    Lemma compose_fin_endo : fin_endo (compose g f).
-    Proof.
-      unfold fin_endo.
-      apply (finite_surj_option proj1 top_map bot_map fin_proj0 natH surjH).
-    Qed.
-  End FinEndoComp.
-End FinEndoComp.
-Import FinEndoComp.
-Export FinEndoComp.
 
 (** * Restriction
 
@@ -269,7 +164,7 @@ Module Restrictions.
     Ltac dec_in_spt a :=
       destruct (dec_in_spt a); try tauto.
 
-    Local Definition dom_proof a
+    Local Definition dom_proof {a}
       : mod_elt i f a -> in_spt a -> mod_elt i (restrict_map f) a.
     Proof.
       unfold mod_elt, restrict_map in *; dec_in_spt a.
@@ -286,13 +181,13 @@ Module Restrictions.
     Local Definition k (a : A) : option A :=
       if dec_in_spt a then Some a else None.
 
-    Local Lemma hk_in_spt a H
+    Local Lemma hk_in_spt {a} H
       : in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
     Proof.
       unfold h, k; dec_in_spt a.
     Qed.
 
-    Local Lemma hk_no_spt a H
+    Local Lemma hk_no_spt {a} H
       : ~ in_spt a -> option_map proj0 (h (exist _ a H)) = k a.
     Proof.
       unfold h, k; dec_in_spt a.
@@ -307,7 +202,8 @@ Module Restrictions.
       - apply (hk_no_spt H); tauto.
     Qed.
 
-    Lemma in_dom_from_restrict a : mod_elt i (restrict_map f) a -> mod_elt i f a.
+    Lemma in_dom_from_restrict {a}
+      : mod_elt i (restrict_map f) a -> mod_elt i f a.
     Proof.
       unfold mod_elt, restrict_map in *; dec_in_spt a.
     Qed.
@@ -327,3 +223,5 @@ Module Restrictions.
 End Restrictions.
 Import Restrictions.
 Export Restrictions.
+
+Arguments restrict_map {A B} i in_spt dec_in_spt f a.
