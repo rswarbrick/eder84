@@ -12,6 +12,7 @@ Terms/Generality.v
 Terms/Term.v
 Terms/VecUtils.v
 Terms/Perm.v
+Terms/NoSup.v
 
 -Q Terms Top.Terms
 -Q FinSet Top.FinSet
