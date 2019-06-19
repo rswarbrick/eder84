@@ -108,6 +108,53 @@ Proof.
   auto.
 Qed.
 
+Fixpoint map_if {A B : Type} (f : A -> option B) (l : list A) : list B :=
+  match l with
+  | nil => nil
+  | cons a l' => match f a with
+                 | Some b => cons b (map_if f l')
+                 | None => map_if f l'
+                 end
+  end.
+
+Lemma map_map_if {A B C : Type} (f : A -> option B) (g : B -> C) l
+  : map g (map_if f l) = map_if (fun a => option_map g (f a)) l.
+Proof.
+  induction l as [ | a l IH ]; auto.
+  unfold map_if at 1; fold (map_if f).
+  unfold map_if at 3; fold (map_if (fun a => (option_map g (f a)))).
+  case (f a); intros; simpl; auto using f_equal.
+Qed.
+
+Lemma in_map_if {A B : Type} {f : A -> option B} a b l
+  : In a l -> f a = Some b -> In b (map_if f l).
+Proof.
+  intros inH faH.
+  induction l as [ | a' l IH ]; auto.
+  unfold map_if; fold (map_if f).
+  destruct inH as [ -> | neH ].
+  - rewrite faH; auto with datatypes.
+  - destruct (f a'); auto with datatypes.
+Qed.
+
+Lemma fin_domain_implies_fin_mod {A B : Type} (i f : A -> B) {l : list A}
+  : (forall x y : B, {x = y} + { ~ x = y }) ->
+    Full l ->
+    fin_mod i f.
+Proof.
+  intros decB fullH.
+  exists (map_if (fun a => match decB (f a) (i a) with
+                           | left _ => None
+                           | right neH => Some (exist _ a neH)
+                           end) l).
+  intro d.
+  unfold InProj.
+  rewrite map_map_if.
+  destruct d as [ a aH ].
+  apply (in_map_if a); auto.
+  destruct (decB (f a) (i a)); auto; contradiction.
+Qed.
+
 (** * Finite endomorphisms
 
     A special case of a [fin_mod] is when [B = A]. Then we call a
