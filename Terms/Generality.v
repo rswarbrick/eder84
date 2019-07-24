@@ -7,18 +7,17 @@ Require Import Top.Terms.Term.
    substitutions, abbreviated to smg.
  *)
 Section smg.
-  Variable V F : Type.
-  Variable a : F -> nat.
+  Variable L : lType.
 
-  Definition Subst := (V -> Term V F a).
+  Definition Subst := (Lmodule.V L -> Term L).
 
   Definition smg (sigma tau : Subst) : Prop :=
     exists rho, forall v, comp_subst rho sigma v = tau v.
 
   Lemma smg_refl {sigma : Subst} : smg sigma sigma.
   Proof.
-    unfold smg; exists (varTerm V F a); intro v.
-    apply (comp_subst_idl V F a).
+    unfold smg; exists (varTerm L); intro v.
+    apply (comp_subst_idl L).
   Qed.
 
   Lemma smg_trans {r s t : Subst} :
@@ -29,9 +28,9 @@ Section smg.
     destruct 1 as [ rho_st stH ].
     exists (comp_subst rho_st rho_rs).
     intro v.
-    rewrite <- (comp_subst_assoc V F a).
-    assert (eqH : forall v : V, rho_st v = rho_st v); auto.
-    rewrite (comp_subst_ex V F a v eqH rsH).
+    rewrite <- (comp_subst_assoc L).
+    assert (eqH : forall v, rho_st v = rho_st v); auto.
+    rewrite (comp_subst_ex L v eqH rsH).
     rewrite stH.
     exact eq_refl.
   Qed.

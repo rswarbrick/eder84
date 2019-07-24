@@ -22,12 +22,25 @@ Definition vec := VectorDef.t.
     When talking about terms, we fix types [V] and [F]. Elements of
     [V] are variable names and elements of [F] should be thought of as
     functions or operators. There is also an arity function, [a],
-    which gives the arity of each function. *)
+    which gives the arity of each function.
+
+    Rather than pass these types around separately, we pack them into
+    a module (in a similar style to that used in mathcomp). *)
+
+Module Lmodule.
+  Record mixin_of (V F : Type) : Type := Mixin { a : F -> nat }.
+  Structure type : Type := Pack { V : Type; F : Type; mixin : mixin_of V F }.
+End Lmodule.
+
+Notation lType := Lmodule.type.
+Notation LType := Lmodule.Pack.
 
 Section Term.
-  Variable V : Type.
-  Variable F : Type.
-  Variable a : F -> nat.
+  Variable L : lType.
+
+  Local Definition V := Lmodule.V L.
+  Local Definition F := Lmodule.F L.
+  Local Definition a := Lmodule.a _ _ (Lmodule.mixin L).
 
   Inductive Term : Type :=
   | varTerm : V -> Term
@@ -374,4 +387,4 @@ Section Term.
 
 End Term.
 
-Arguments comp_subst {V F a} sigma tau.
+Arguments comp_subst {L} sigma tau.

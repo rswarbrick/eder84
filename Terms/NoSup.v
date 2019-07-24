@@ -12,21 +12,22 @@ Inductive V := Vx | Vy | Vz.
 Inductive F := Ff.
 Definition a (f : F) : nat := 2.
 
-Definition mkF (t0 t1 : Term V F a) : Term V F a :=
-  funTerm V F a Ff
+Definition L := LType V F (Lmodule.Mixin _ _ a).
+
+Definition mkF (t0 t1 : Term L) : Term L :=
+  funTerm L Ff
           (VectorDef.cons _ t0 1
                           (VectorDef.cons _ t1 O (VectorDef.nil _))).
 
-Definition mkV (v : V) : Term V F a := varTerm V F a v.
+Definition mkV (v : V) : Term L := varTerm L v.
 
 Lemma subst_endo_mkF s t0 t1
-  : subst_endo V F a s (mkF t0 t1) =
-    mkF (subst_endo V F a s t0) (subst_endo V F a s t1).
+  : subst_endo L s (mkF t0 t1) = mkF (subst_endo L s t0) (subst_endo L s t1).
 Proof.
   tauto.
 Qed.
 
-Lemma subst_endo_mkV s v : subst_endo V F a s (mkV v) = s v.
+Lemma subst_endo_mkV s v : subst_endo L s (mkV v) = s v.
 Proof.
   tauto.
 Qed.
@@ -39,17 +40,17 @@ Proof.
   auto.
 Qed.
 
-Definition sigma : Subst V F a :=
+Definition sigma : Subst L :=
   fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
 
-Definition tau : Subst V F a :=
+Definition tau : Subst L :=
   fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
 
 (** In Eder's paper, he talks about the set containing [sigma] and
     [tau]. We define sets of substitutions implicitly using predicates
     [P : Subst -> Prop]. *)
 
-Definition in_st (s : Subst V F a) : Prop := s = sigma \/ s = tau.
+Definition in_st (s : Subst L) : Prop := s = sigma \/ s = tau.
 
 (** We want to show that this set is bounded above but has no
     supremum. To get started, we look at what it means for some [rho]
@@ -60,7 +61,7 @@ Definition in_st (s : Subst V F a) : Prop := s = sigma \/ s = tau.
 
  *)
 Section sigma_decomp.
-  Variable sigma' rho : Subst V F a.
+  Variable sigma' rho : Subst L.
   Hypothesis decompH : forall v, comp_subst sigma' sigma v = rho v.
 
   Local Definition s12 := sigma' Vx.
@@ -74,7 +75,7 @@ Section sigma_decomp.
 End sigma_decomp.
 
 Section tau_decomp.
-  Variable tau' rho : Subst V F a.
+  Variable tau' rho : Subst L.
   Hypothesis decompH : forall v, comp_subst tau' tau v = rho v.
 
   Local Definition s1 := tau' Vx.
@@ -88,7 +89,7 @@ Section tau_decomp.
 End tau_decomp.
 
 Lemma form_if_ub {rho}
-  : smg V F a sigma rho -> smg V F a tau rho ->
+  : smg L sigma rho -> smg L tau rho ->
     exists t0 t1 t2 t3,
       forall v, rho v = mkF (mkF t0 t1) (mkF t2 t3).
 Proof.
@@ -106,7 +107,7 @@ Qed.
 
 Lemma ub_if_form {rho t0 t1 t2 t3}
   : (forall v, rho v = mkF (mkF t0 t1) (mkF t2 t3)) ->
-    smg V F a sigma rho /\ smg V F a tau rho.
+    smg L sigma rho /\ smg L tau rho.
 Proof.
   intro formH.
   constructor.
@@ -129,7 +130,7 @@ Proof.
 Qed.
 
 Lemma ub_iff {rho}
-  : subst_ub V F a in_st rho <->
+  : subst_ub L in_st rho <->
     exists t0 t1 t2 t3, forall v, rho v = mkF (mkF t0 t1) (mkF t2 t3).
 Proof.
   unfold subst_ub.

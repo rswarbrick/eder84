@@ -13,35 +13,33 @@ Require Import Top.FinSet.FPCard.
     itself. *)
 
 Section var_subst.
-  Variable V : Type.
-  Variable F : Type.
-  Variable a : F -> nat.
+  Definition var_subst (V : Type) := sig (@fin_endo V).
 
-  Definition var_subst := sig (@fin_endo V).
+  Variable L : lType.
 
-  Definition var_subst_subst (s : var_subst) : V -> Term V F a :=
-    compose (varTerm V F a) (proj1_sig s).
+  Definition var_subst_subst (s : var_subst (Lmodule.V L))
+    : Lmodule.V L -> Term L :=
+    compose (varTerm L) (proj1_sig s).
 
-  Hypothesis decV : forall x y : V, {x = y} + { ~ x = y }.
-  Hypothesis decF : forall x y : F, {x = y} + { ~ x = y }.
+  Hypothesis decV : forall x y : Lmodule.V L, {x = y} + { ~ x = y }.
+  Hypothesis decF : forall x y : Lmodule.F L, {x = y} + { ~ x = y }.
 
   (** Since we're generally interested in finite substitutions, we
       would hope that a [var_subst] induces one, and it does. *)
 
   Lemma fin_subst_var_subst s
-    : fin_subst V F a (var_subst_subst s).
+    : fin_subst L (var_subst_subst s).
   Proof.
     destruct s as [ f finH ]; simpl.
-    apply (compose_fin_mod decV decV (decTerm V F a decV decF));
+    apply (compose_fin_mod decV decV (decTerm L decV decF));
       first [ apply finH | apply fin_mod_i | contradiction ].
   Qed.
 
-  Definition compose_var_subst : var_subst -> var_subst -> var_subst :=
-    fun t s =>
-      match t, s with
-        exist _ g gH, exist _ f fH =>
-        exist _ (compose g f) (compose_fin_endo decV fH gH)
-      end.
+  Definition compose_var_subst (t s : var_subst (Lmodule.V L)) :=
+    match t, s with
+      exist _ g gH, exist _ f fH =>
+      exist _ (compose g f) (compose_fin_endo decV fH gH)
+    end.
 
   Lemma proj1_sig_compose_var_subst t s
     : proj1_sig (compose_var_subst t s) = compose (proj1_sig t) (proj1_sig s).
@@ -51,10 +49,10 @@ Section var_subst.
 End var_subst.
 
 Arguments var_subst V : assert.
-Arguments var_subst_subst {V F} a s v.
-Arguments fin_subst_var_subst {V F} a decV decF.
-Arguments compose_var_subst {V} decV t s.
-Arguments proj1_sig_compose_var_subst {V} decV t s.
+Arguments var_subst_subst {L} s v.
+Arguments fin_subst_var_subst {L} decV decF.
+Arguments compose_var_subst {L} decV t s.
+Arguments proj1_sig_compose_var_subst {L} decV t s.
 
 (** We're particularly interested in permutations, defined to be
     bijective variable substitutions. Since "bijective" is a little
