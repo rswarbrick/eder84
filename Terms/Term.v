@@ -28,8 +28,7 @@ Definition vec := VectorDef.t.
     a module (in a similar style to that used in mathcomp). *)
 
 Module Lmodule.
-  Record mixin_of (V F : Type) : Type := Mixin { a : F -> nat }.
-  Structure type : Type := Pack { V : Type; F : Type; mixin : mixin_of V F }.
+  Structure type : Type := Pack { V : Type; F : Type; a : F -> nat }.
 End Lmodule.
 
 Notation lType := Lmodule.type.
@@ -40,7 +39,7 @@ Section Term.
 
   Local Definition V := Lmodule.V L.
   Local Definition F := Lmodule.F L.
-  Local Definition a := Lmodule.a _ _ (Lmodule.mixin L).
+  Local Definition a := Lmodule.a L.
 
   Inductive Term : Type :=
   | varTerm : V -> Term

@@ -41,7 +41,7 @@ Proof.
   intros v v'; destruct v, v'; (auto || (right; discriminate)).
 Qed.
 
-Definition L := LType V F (Lmodule.Mixin _ _ a).
+Definition L := LType V F a.
 
 (** Constructing terms with vectors is a little cumbersome. [mkF] is a
     helper for applying the binary operation [Ff]. As you'd hope,
