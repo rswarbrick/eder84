@@ -385,6 +385,38 @@ Section Term.
     apply restrict_preserves_fin_mod.
   Qed.
 
+  (** * Heights
+
+      When trying to show things about terms, it's sometimes useful to
+      know their heights. This is the maximum nesting depth of
+      function terms. In particular, a substitution can never decrease
+      the height of a term.
+   *)
+
+  Fixpoint term_height (t : Term) : nat :=
+    match t with
+    | varTerm v => O
+    | funTerm f ts => S (vec_max_at term_height ts)
+    end.
+
+  Lemma term_height_subst {s}
+    : forall t, term_height t <= term_height (subst_endo s t).
+  Proof.
+    apply Term_ind'; auto using le_0_n.
+    intros.
+    apply le_n_S; fold (subst_endo s); fold term_height.
+    auto using vec_max_at_map_le.
+  Qed.
+
+  Lemma term_height_comp_subst {s' s v}
+    : term_height (s v) <= term_height (comp_subst s' s v).
+  Proof.
+    apply term_height_subst.
+  Qed.
+
 End Term.
 
 Arguments comp_subst {L} sigma tau.
+Arguments term_height {L} t.
+Arguments term_height_subst {L s}.
+Arguments term_height_comp_subst {L s' s v}.

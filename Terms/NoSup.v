@@ -1,6 +1,7 @@
-Require Top.Terms.Term.
-Require Top.Terms.Generality.
+Require Import Top.Terms.Term.
+Require Import Top.Terms.Generality.
 Require Import Top.Terms.Perm.
+Require Import Top.Terms.VecUtils.
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.FinSet.
 
@@ -40,25 +41,14 @@ Proof.
   intros v v'; destruct v, v'; (auto || (right; discriminate)).
 Qed.
 
-(** Rather than suffixing everything with [V F a], we import
-    [Term.Term] qualified and then define local things with the right
-    names, specialised to our setup. *)
-
-Definition L := Term.LType V F (Term.Lmodule.Mixin _ _ a).
-
-Definition T := Term.Term L.
-Definition funTerm := Term.funTerm L.
-Definition varTerm := Term.varTerm L.
-Definition subst_endo := Term.subst_endo L.
-Definition Subst := Generality.Subst L.
-Definition smg := Generality.smg L.
+Definition L := LType V F (Lmodule.Mixin _ _ a).
 
 (** Constructing terms with vectors is a little cumbersome. [mkF] is a
     helper for applying the binary operation [Ff]. As you'd hope,
     [mkF] is injective. *)
 
-Definition mkF (t0 t1 : T) : T :=
-  funTerm Ff (VectorDef.cons _ t0 1 (VectorDef.cons _ t1 O (VectorDef.nil _))).
+Definition mkF (t0 t1 : Term L) : Term L :=
+  funTerm L Ff (VectorDef.cons _ t0 1 (VectorDef.cons _ t1 O (VectorDef.nil _))).
 
 Lemma mkF_inj {s0 t0 s1 t1} : mkF s0 s1 = mkF t0 t1 -> s0 = t0 /\ s1 = t1.
 Proof.
@@ -69,7 +59,7 @@ Qed.
    variables. Of course, this is just [varTerm]. This is also
    injective. *)
 
-Definition mkV : V -> T := varTerm.
+Definition mkV : V -> Term L := varTerm L.
 
 Lemma mkV_inj {v v'} : mkV v = mkV v' -> v = v'.
 Proof.
@@ -80,12 +70,12 @@ Qed.
     acts as a homomorphism as you'd hope. *)
 
 Lemma subst_endo_mkF s t0 t1
-  : subst_endo s (mkF t0 t1) = mkF (subst_endo s t0) (subst_endo s t1).
+  : subst_endo L s (mkF t0 t1) = mkF (subst_endo L s t0) (subst_endo L s t1).
 Proof.
   exact eq_refl.
 Qed.
 
-Lemma subst_endo_mkV s v : subst_endo s (mkV v) = s v.
+Lemma subst_endo_mkV s v : subst_endo L s (mkV v) = s v.
 Proof.
   exact eq_refl.
 Qed.
@@ -95,9 +85,9 @@ Qed.
     Eder considers two specially chosen substitutions: [sigma] and
     [tau]. *)
 
-Definition sigma : Subst := fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
+Definition sigma : Subst L := fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
 
-Definition tau : Subst := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
+Definition tau : Subst L := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
 
 (** In Eder's paper, he talks about the set containing [sigma] and
     [tau]. We define sets of substitutions implicitly using predicates
@@ -108,22 +98,22 @@ Definition tau : Subst := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
     upper bound over [in_st]. (There are two elements in the set, so
     it's pretty easy to see what you have to do!) *)
 
-Definition in_st (s : Subst) : Prop := s = sigma \/ s = tau.
+Definition in_st (s : Subst L) : Prop := s = sigma \/ s = tau.
 
 Lemma ub_st_elim {rho}
-  : Generality.subst_ub L in_st rho ->
-    smg sigma rho /\ smg tau rho.
+  : subst_ub L in_st rho ->
+    smg L sigma rho /\ smg L tau rho.
 Proof.
-  unfold Generality.subst_ub, in_st, smg; auto.
+  unfold subst_ub, in_st, smg; auto.
 Qed.
 
 Lemma ub_st_intro {rho}
-  : smg sigma rho ->
-    smg tau rho ->
-    Generality.subst_ub L in_st rho.
+  : smg L sigma rho ->
+    smg L tau rho ->
+    subst_ub L in_st rho.
 Proof.
   intros.
-  unfold Generality.subst_ub, in_st; fold smg.
+  unfold subst_ub, in_st; fold smg.
   intro t; destruct 1; congruence.
 Qed.
 
@@ -138,8 +128,8 @@ Qed.
 
 Section sigma_decomp.
   Variable v : V.
-  Variable sigma' rho : Subst.
-  Hypothesis decompH : Term.comp_subst sigma' sigma v = rho v.
+  Variable sigma' rho : Subst L.
+  Hypothesis decompH : comp_subst sigma' sigma v = rho v.
 
   Local Definition s12 := sigma' Vx.
   Local Definition s3 := sigma' Vy.
@@ -156,8 +146,8 @@ End sigma_decomp.
 
 Section tau_decomp.
   Variable v : V.
-  Variable tau' rho : Subst.
-  Hypothesis decompH : Term.comp_subst tau' tau v = rho v.
+  Variable tau' rho : Subst L.
+  Hypothesis decompH : comp_subst tau' tau v = rho v.
 
   Local Definition s1 := tau' Vx.
   Local Definition s2 := tau' Vy.
@@ -169,34 +159,35 @@ Section tau_decomp.
   Qed.
 End tau_decomp.
 
-(** * Quads
+(** * Upper bounds for [in_st]
 
     In what follows, we often want to say "there exist four terms such
     that...". This is a bit unwieldy with four layers of existential
     quantifier, so we define a [Quad] type to hold them.
 
+    We're going to need a variation on the quad type in a minute, so
+    we include an map from the entries to terms. A quad containing
+    terms is a [Quad id].
+
  *)
 
-Inductive Quad := mkQuad { q_t0 : T ; q_t1 : T ; q_t2 : T ; q_t3 : T }.
+Inductive Quad {A : Type} (f : A -> Term L) :=
+  mkQuad { q_t0 : A ; q_t1 : A ; q_t2 : A ; q_t3 : A }.
 
 (** The quad composes to make the term [F (F a b) (F c d)], where [a,
     b, c, d] are the coordinates of the quad. *)
 
-Definition quad_term (q : Quad) : T :=
-  match q with mkQuad t0 t1 t2 t3 => mkF (mkF t0 t1) (mkF t2 t3) end.
-
-(** This is just a helper method for defining functions on [V] by
-    cases. *)
-
-Definition vfun {A : Type} (ax ay az : A) (v : V) : A :=
-  match v with Vx => ax | Vy => ay | Vz => az end.
+Definition quad_term {A : Type} {f : A -> Term L} (q : Quad f) : Term L :=
+  match q with
+    mkQuad _ _ a0 a1 a2 a3 => mkF (mkF (f a0) (f a1)) (mkF (f a2) (f a3))
+  end.
 
 (** If a substitution decomposes with [sigma] and [tau], we can
     actually write down its form explicitly. *)
 
 Lemma subst_is_quad_term {v sigma' tau' rho}
-  : Term.comp_subst sigma' sigma v = rho v ->
-    Term.comp_subst tau' tau v = rho v ->
+  : comp_subst sigma' sigma v = rho v ->
+    comp_subst tau' tau v = rho v ->
     rho v = mkF (mkF (s1 tau') (s2 tau')) (mkF (s3 sigma') (s4 sigma')).
 Proof.
   intros sigmaH tauH.
@@ -208,107 +199,171 @@ Proof.
   congruence.
 Qed.
 
-(** Now we pack [subst_is_quad_term] up into a nicer lemma *)
+(** Now we can pack [subst_is_quad_term] up into a nicer lemma, which
+    shows that every upper bound for [in_st] is a [quad_term]. *)
 
 Lemma form_if_ub {rho}
-  : Generality.subst_ub L in_st rho ->
-    exists q : Quad, forall v, rho v = quad_term q.
+  : subst_ub L in_st rho ->
+    exists q : Quad id, forall v, rho v = quad_term q.
 Proof.
   intro ubH.
   destruct (ub_st_elim ubH) as [ smgsH smgtH ].
   destruct smgsH as [ sigma' sigmaH ].
   destruct smgtH as [ tau' tauH ].
-  exists (mkQuad (s1 tau') (s2 tau') (s3 sigma') (s4 sigma')).
+  exists (mkQuad _ _ (s1 tau') (s2 tau') (s3 sigma') (s4 sigma')).
   intro v; unfold quad_term.
   apply subst_is_quad_term; auto.
 Qed.
 
-(*
+(** The converse is also true: every [quad_term] is an upper bound for
+    [in_st]. To make the definition slick, we define [vfun], a helper
+    method for defining functions on [V] by cases. *)
 
-Lemma ub_if_form {q} rho : (forall v, rho v = quad_term q) -> subst_ub
-  V F a in_st rho.  Proof.  intro formH.  destruct q as [ t0 t1 t2 t3
-  ].  intro t; destruct 1 as [ -> | -> ].  - exists (vfun (mkF t0 t1)
-  t2 t3); intro v; destruct v; unfold vfun, comp_subst, compose;
-  simpl; fold (mkF t2 t3); fold (mkF (mkF t0 t1) (mkF t2 t3)); auto.
-  - exists (vfun t0 t1 (mkF t2 t3)); intro v; destruct v; unfold vfun,
-  comp_subst, compose; simpl; fold (mkF t0 t1); fold (mkF (mkF t0 t1)
-  (mkF t2 t3)); auto.  Qed.
+Definition vfun {A : Type} (ax ay az : A) (v : V) : A :=
+  match v with Vx => ax | Vy => ay | Vz => az end.
 
-(** We want to show that if [rho] is a supremum for [in_st] then in
-    any quad form for [rho], each [t0] through [t3] is of the form
-    [mkV v0] through [mkV v3].  *) Inductive VQuad := mkVQuad { v_t0 :
-    V ; v_t1 : V ; v_t2 : V ; v_t3 : V }.
+Lemma ub_if_form {q : Quad id} rho
+  : (forall v, rho v = quad_term q) -> Generality.subst_ub L in_st rho.
+Proof.
+  destruct q as [ t0 t1 t2 t3 ].
+  intros formH; apply ub_st_intro;
+    [ exists (vfun (mkF t0 t1) t2 t3) | exists (vfun t0 t1 (mkF t2 t3)) ];
+    intro v; destruct v; auto.
+Qed.
 
-Definition vquad_to_quad (vq : VQuad) : Quad := mkQuad (mkV (v_t0 vq))
-  (mkV (v_t1 vq)) (mkV (v_t2 vq)) (mkV (v_t3 vq)).
+(** * Supremums for [in_st]
 
-Lemma factor_var_map {v q sigma rho vq} : (rho v = quad_term q) ->
-  (comp_subst sigma rho v = quad_term (vquad_to_quad vq)) -> exists
-  vq', rho v = quad_term (vquad_to_quad vq').  Proof.  intros rhoH H.
-  unfold comp_subst, compose in H.  unfold subst_endo at 2 in H.
-  destruct q as [ t0 t1 t2 t3 ].  rewrite rhoH in *; clear rhoH.
-  simpl in H; simpl.  injection H; clear H; intros H3 H2 H1 H0.
-  destruct vq as [ v0 v1 v2 v3 ]; simpl in *.  (* Each Hi implies ti
-  is a variable *) repeat match goal with | [ H : subst_endo V F a
-  sigma ?t = mkV ?v |- _ ] => let H' := fresh in rename H into H';
-  assert (exists w, t = varTerm V F a w) as H; try solve [(destruct t
-  as [ w | ]; (exists w; auto) || inversion H')]; clear H' end.
-  destruct H0 as [ w0 H0 ].  destruct H1 as [ w1 H1 ].  destruct H2 as
-  [ w2 H2 ].  destruct H3 as [ w3 H3 ].  exists (mkVQuad w0 w1 w2 w3);
-  simpl.  rewrite H0, H1, H2, H3.  tauto.  Qed.
+    We have shown that a substitution is an upper bound if and only if
+    it maps every v to some [quad_term]. If the substitution is to be
+    a supremum as well, the entries in the quad term must themselves
+    be variables. This can be written as [Quad mkV].
 
-(*
+    This holds because any substitution that maps to a quad of
+    variables (for example, [cvquad Vx]) is of the correct form to be
+    an upper bound.
 
+    This is surprisingly difficult to prove. The problem is that we
+    don't immediately get variables in our equations, where we can
+    destruct the terms to see what's going on. To avoid a horrible
+    mess, we use the [term_height] function. The point is that
+    [term_height (quad_term q)] is zero iff [q] only contains
+    variables.
+ *)
 
-Lemma quad_rho_is_vquad {rho q} : subst_sup V F a in_st rho -> (forall
-  v, rho v = quad_term q) -> exists vq, q = vquad_to_quad vq.  Proof.
-  destruct 1 as [ ubH lbH ].  intros qH.  (** The proof starts by
-  picking another upper bound whose terms are simple variables. *) set
-  (x := mkV Vx).  set (qx := vquad_to_quad (mkVQuad Vx Vx Vx Vx)).
-  set (f := (fun v : V => mkF (mkF x x) (mkF x x))).  specialize (lbH
-  f).  assert (ubfH : subst_ub V F a in_st f).  try (apply
-  (@ub_if_form qx f); intro v; destruct v; auto).  specialize (lbH
-  ubfH) as smgH; clear ubfH.  (** The smgH hypothesis says that we can
-  factor [f] through [rho] *) destruct smgH as [ sigma sigmaH ].
+Definition cvquad (v : V) : Quad mkV := mkQuad _ _ v v v v.
+Definition cvquad_subst (v : V) : Subst L := fun v' => quad_term (cvquad v).
 
+Lemma cvquad_is_ub (v : V)
+  : Generality.subst_ub L in_st (cvquad_subst v).
+Proof.
+  set (q := mkQuad _ id (mkV v) (mkV v) (mkV v) (mkV v)).
+  apply (@ub_if_form q).
+  intro v'; auto.
+Qed.
 
+Lemma height_cvquad_subst_v {v v' : V}
+  : term_height (cvquad_subst v v') = 2.
+Proof.
+  apply eq_refl.
+Qed.
 
-  unfold smg in smgH.
+Lemma arity_value (f : Term.F L) : Term.a L f = 2.
+Proof.
+  apply eq_refl.
+Qed.
 
+Lemma height_cvquad_subst_endo {v : V} {t : Term L}
+  : term_height (subst_endo L (cvquad_subst v) t) = 2 + term_height t.
+Proof.
+  revert t; apply Term_ind'; auto using height_cvquad_subst_v.
+  intros f ts IH.
+  unfold cvquad_subst, subst_endo;
+    fold (subst_endo L); fold (cvquad_subst v).
+  unfold term_height; fold (@term_height L).
+  rewrite PeanoNat.Nat.add_succ_r; apply f_equal.
+  rewrite (vec_max_at_map_equal (g := fun n => 2 + n)); auto; clear IH.
+  revert ts; rewrite arity_value.
+  intros; apply vec_max_at_map_incr.
+  intros; repeat (apply le_n_S); assumption.
+Qed.
 
+Lemma height_mkF {t t'}
+  : term_height (mkF t t') = S (max (term_height t) (term_height t')).
+Proof.
+  unfold mkF.
+  unfold term_height at 1; fold (@term_height L).
+  apply f_equal.
+  rewrite (vec_max_at_cons (n := 1)).
+  rewrite (vec_max_at_cons_nil).
+  exact eq_refl.
+Qed.
 
-Lemma UNUSED_subst_to_var_is_var_subst {rho} : (forall v, exists v',
-  rho v = mkV v') -> (exists rho', forall v, rho v = var_subst_subst a
-  rho' v).  Proof.  intro H.  destruct (H Vx) as [ vx Hx ].  destruct
-  (H Vy) as [ vy Hy ].  destruct (H Vz) as [ vz Hz ].  set (f := (fun
-  v => match v with | Vx => vx | Vy => vy | Vz => vz end)).  exists
-  (exist _ f (fin_domain_implies_fin_mod id f decV fullV)).  intro
-  v. unfold var_subst_subst; simpl; unfold f, compose.  destruct v;
-  tauto.  Qed.
+Lemma max_0_elim {a b}
+  : max a b = 0 -> a = 0 /\ b = 0.
+Proof.
+  destruct a, b; auto.
+  intro sH; rewrite <- PeanoNat.Nat.succ_max_distr in sH.
+  contradiction (PeanoNat.Nat.neq_succ_0 _ sH).
+Qed.
 
-(* This is nonsense. We must show that
+Lemma height_0_term {t}
+  : term_height t = 0 -> exists v, t = mkV v.
+Proof.
+  destruct t.
+  - exists v; auto.
+  - simpl; intro eqH; contradiction (PeanoNat.Nat.neq_succ_0 _ eqH).
+Qed.
 
-     rho v = F (F a b) (F c d)
+Lemma height_2_quad_term {tq : Quad id}
+  : term_height (quad_term tq) = 2 ->
+    exists vq : Quad mkV, quad_term tq = quad_term vq.
+Proof.
+  intro htH.
+  destruct tq as [ t0 t1 t2 t3 ]; unfold quad_term, id in htH.
+  assert ((max (max (term_height t0) (term_height t1))
+               (max (term_height t2) (term_height t3))) = 0) as maxH;
+    [ apply eq_add_S, eq_add_S; revert htH; rewrite !height_mkF; auto | ].
+  destruct (max_0_elim maxH) as [ max01H max23H ]; clear htH maxH.
+  destruct (max_0_elim max01H) as [ max0H max1H ]; clear max01H.
+  destruct (max_0_elim max23H) as [ max2H max3H ]; clear max23H.
+  destruct (height_0_term max0H) as [ v0 H0 ]; clear max0H.
+  destruct (height_0_term max1H) as [ v1 H1 ]; clear max1H.
+  destruct (height_0_term max2H) as [ v2 H2 ]; clear max2H.
+  destruct (height_0_term max3H) as [ v3 H3 ]; clear max3H.
+  exists (mkQuad _ mkV v0 v1 v2 v3).
+  unfold quad_term, id; rewrite H0, H1, H2, H3.
+  exact eq_refl.
+Qed.
 
-  where a, b, c, d are disjoint variables. *)
+Lemma height_quad_term {A} {f : A -> Term L} {q : Quad f}
+  : 2 <= term_height (quad_term q).
+Proof.
+  destruct q; unfold quad_term.
+  rewrite !height_mkF; simpl.
+  auto using le_n_S, le_0_n.
+Qed.
 
-Lemma sup_is_var_subst {rho} : subst_sup V F a in_st rho -> exists
-  rho' : var_subst V, forall v, rho v = var_subst_subst a rho' v.
-  Proof.  destruct 1 as [ ubH lbH ].  apply subst_to_var_is_var_subst.
-  (* Unpack form_if_ub to get the general shape of rho *) destruct
-  (form_if_ub ubH) as [ t0 ubH' ]; clear ubH.  destruct ubH' as [ t1
-  ubH ]; destruct ubH as [ t2 ubH ]; destruct ubH as [ t3 ubH ].  (*
-  Now we need to use the fact that rho is a minimal upper bound. *)
-  intro v.  specialize (ubH v).
+Lemma comp_subst_quad_to_var {s0 s1 : Subst L} {v v' : V} {tq : Quad id}
+  : s0 v' = quad_term tq ->
+    comp_subst s1 s0 v' = cvquad_subst v v' ->
+    exists vq : Quad mkV, s0 v' = quad_term vq.
+Proof.
+  intros tqH eqH.
+  rewrite tqH; apply height_2_quad_term.
+  apply PeanoNat.Nat.le_antisymm; [ | exact height_quad_term ].
+  rewrite <- tqH.
+  assert (term_height (comp_subst s1 s0 v') = 2) as heightH;
+    [ exact (f_equal term_height eqH) | ].
+  rewrite <- heightH; exact term_height_comp_subst.
+Qed.
 
-  specialize (ubH Vx).  set (x := mkV Vx).  set (f := (fun v : V =>
-  mkF (mkF x x) (mkF x x))).  specialize (lbH f).  assert (ubfH :
-  subst_ub V F a in_st f); try (apply (@ub_if_form x x x x f); intro
-  v; destruct v; auto).  specialize (lbH ubfH).  destruct lbH as [ f'
-  f'H ].  specialize (f'H Vx).  unfold comp_subst, compose, f in f'H.
-  simpl in f'H.  rewrite ubH in f'H; unfold x in f'H.  injection f'H.
-
-    Check ub_if_form f.  unfold subst_lb in lbH.
-      
-*)
-*)
+Lemma form_if_sup {rho}
+  : Generality.subst_sup L in_st rho ->
+    exists q : Quad mkV, forall v, rho v = quad_term q.
+Proof.
+  destruct 1 as [ ubH lbH ].
+  destruct (form_if_ub ubH) as [ tq tqH ]; clear ubH.
+  destruct (lbH _ (cvquad_is_ub Vx)) as [ rho' rho'H ]; clear lbH.
+  destruct (comp_subst_quad_to_var (tqH Vx) (rho'H Vx)) as [ q qH ].
+  exists q; congruence.
+Qed.

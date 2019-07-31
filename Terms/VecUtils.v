@@ -1,6 +1,8 @@
 Require Import Logic.Eqdep_dec.
 Require Import PeanoNat.
 Require Vectors.VectorDef.
+Require Import Lists.List.
+Require Import Program.Basics.
 
 Definition vec := VectorDef.t.
 
@@ -28,6 +30,12 @@ Section vec_all.
     intros aH vH.
     unfold vec_all; fold (@vec_all n).
     exact (conj aH vH).
+  Qed.
+
+  Lemma vec_all_cons_elim {a n} {v : vec A n}
+    : vec_all (VectorDef.cons _ a _ v) -> P a /\ vec_all v.
+  Proof.
+    auto.
   Qed.
 
   Lemma not_vec_all_cons0 a {n} (v : vec A n)
@@ -92,8 +100,7 @@ Section dec_vec.
 End dec_vec.
 
 Lemma vec_map_map {A B C : Type} (f : A -> B) (g : B -> C) {n} (v : vec A n)
-  : VectorDef.map g (VectorDef.map f v) =
-    VectorDef.map (fun x : A => g (f x)) v.
+  : VectorDef.map g (VectorDef.map f v) = VectorDef.map (compose g f) v.
 Proof.
   induction v as [ | a n v IH ]; try tauto.
   simpl.
@@ -112,3 +119,55 @@ Proof.
   simpl. rewrite eq1H, IH; exact eq_refl.
 Qed.
 
+Definition vec_max_at {A : Type} (h : A -> nat) {n} (v : vec A n) : nat :=
+  VectorDef.fold_right (fun a n => max (h a) n) v 0.
+
+Lemma vec_max_at_cons_nil {A h a}
+  : vec_max_at h (VectorDef.cons A a 0 (VectorDef.nil A)) = h a.
+Proof.
+  unfold vec_max_at; simpl.
+  auto using Nat.max_0_r.
+Qed.
+
+Lemma vec_max_at_cons {A h a n v}
+  : vec_max_at h (VectorDef.cons A a n v) = max (h a) (vec_max_at h v).
+Proof.
+  apply eq_refl.
+Qed.
+
+Lemma vec_max_at_map_le {A} {f h n} {v : vec A n}
+  : vec_all (fun x => h x <= h (f x)) v ->
+    vec_max_at h v <= vec_max_at h (VectorDef.map f v).
+Proof.
+  induction v as [ | a n v IH ]; auto.
+  intros allHC.
+  destruct (vec_all_cons_elim _ _ allHC) as [ hH allH ]; clear allHC.
+  specialize (IH allH); clear allH.
+  simpl; rewrite !vec_max_at_cons.
+  auto using Nat.max_le_compat.
+Qed.
+
+Lemma vec_max_at_map_equal {A f g h n} {v : vec A n}
+  : vec_all (fun x => h (f x) = g (h x)) v ->
+    vec_max_at h (VectorDef.map f v) = vec_max_at (compose g h) v.
+Proof.
+  induction v as [ | a n v IH ]; auto.
+  intros allHC.
+  destruct (vec_all_cons_elim _ _ allHC) as [ hH allH ]; clear allHC.
+  specialize (IH allH); clear allH.
+  simpl; rewrite !vec_max_at_cons.
+  auto.
+Qed.
+
+Lemma vec_max_at_map_incr {A g h n} {v : vec A (S n)}
+  : (forall n n', n <= n' -> g n <= g n') ->
+    vec_max_at (compose g h) v = g (vec_max_at h v).
+Proof.
+  intros incH.
+  revert n v; apply VectorDef.rectS.
+  - intros; rewrite !vec_max_at_cons_nil; auto.
+  - intros a n v IH; rewrite !vec_max_at_cons.
+    rewrite IH; clear IH; unfold compose.
+    apply Nat.max_monotone.
+    unfold Morphisms.Proper, Morphisms.respectful; auto.
+Qed.
