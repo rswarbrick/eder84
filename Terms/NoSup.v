@@ -294,7 +294,7 @@ Proof.
   unfold term_height at 1; fold (@term_height L).
   apply f_equal.
   rewrite (vec_max_at_cons (n := 1)).
-  rewrite (vec_max_at_cons_nil).
+  rewrite (vec_max_at_singleton).
   exact eq_refl.
 Qed.
 

@@ -196,7 +196,7 @@ Section Term.
     - intros f ts allH.
       unfold subst_endo; fold subst_endo.
       apply f_equal.
-      apply vec_map_equal.
+      apply vec_map_ext.
       exact allH.
   Qed.
 
@@ -222,7 +222,7 @@ Section Term.
     intros f ts IH.
     unfold compose, subst_endo; fold subst_endo; apply f_equal.
     rewrite vec_map_map.
-    auto using vec_map_equal.
+    auto using vec_map_ext.
   Qed.
 
   (** As you would hope, [varTerm] is a left and right identity for
@@ -256,7 +256,7 @@ Section Term.
     unfold subst_endo at 3; fold subst_endo.
     apply f_equal.
     rewrite vec_map_map.
-    apply vec_map_equal.
+    apply vec_map_ext.
     exact IH.
   Qed.
 
