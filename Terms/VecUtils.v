@@ -97,6 +97,117 @@ End dec_vec_all.
 
 Arguments dec_vec_all {A P} decP {n} v.
 
+(** * [vec_some]
+
+  This is the existential version of [vec_all]. If everything is
+  decidable, this can be expressed in terms of [vec_all] but, of
+  course, you have to be a bit more careful if not. So we define it
+  separately and then prove the relationship between the two versions
+  afterwards.
+
+*)
+
+Section vec_some.
+  Variable A : Type.
+  Variable P : A -> Prop.
+
+  Fixpoint vec_some {n} (v : vec A n) :=
+    match v with
+    | vnil _ => False
+    | vcons _ a _ v' => P a \/ vec_some v'
+    end.
+
+  (**
+
+    The introduction rules for [vec_some]. Unlike [vec_all], there
+    isn't a rule for the nil case (since this is always false!) As
+    with [vec_all], we prove an explicit introduction rule for the
+    singleton case.
+
+   *)
+
+  Lemma vec_some_cons0 a {n} (v : vec A n)
+    : P a -> vec_some (vcons A a n v).
+  Proof.
+    simpl; auto.
+  Qed.
+
+  Lemma vec_some_cons1 a {n} (v : vec A n)
+    : vec_some v -> vec_some (vcons A a n v).
+  Proof.
+    simpl; auto.
+  Qed.
+
+  Definition vec_some_singleton a (aH : P a) : vec_some (vsing a) :=
+    vec_some_cons0 a (vnil _) aH.
+
+  (**
+
+    Now the introduction rules for [~vec_some].
+
+   *)
+
+  Lemma not_vec_some_nil : ~ vec_some (vnil A).
+  Proof.
+    auto.
+  Qed.
+
+  Lemma not_vec_some_cons a {n} (v : vec A n)
+    : ~ P a -> ~ vec_some v -> ~ vec_some (vcons A a n v).
+  Proof.
+    simpl; tauto.
+  Qed.
+
+End vec_some.
+
+Arguments vec_some {A} P {n}.
+Arguments vec_some_cons0 {A P a n v} naH.
+Arguments vec_some_cons1 {A P} a {n v} nvH.
+Arguments vec_some_singleton {A P a} aH.
+Arguments not_vec_some_nil {A} P.
+Arguments not_vec_some_cons {A P a n v} aH vH.
+
+Hint Resolve vec_some_cons0 : vec.
+Hint Resolve vec_some_cons1 : vec.
+Hint Resolve vec_some_singleton : vec.
+
+(** Before we do the equivalent of [dec_vec_all] for [vec_some], we
+    show the relationship between [vec_some] and [vec_all]. This
+    lets us "cheat" and avoid having to define a decidable
+    version of [vec_some] from scratch. *)
+
+Section dec_vec_some.
+  Variable A : Type.
+  Variable P : A -> Prop.
+  Hypothesis decP : forall x : A, {P x} + {~ (P x)}.
+
+  Lemma vec_some_as_vec_all {n} (v : vec A n)
+    : vec_some P v <-> ~ vec_all (fun a => ~ P a) v.
+  Proof.
+    induction v as [ | a n v IH ].
+    - simpl; tauto.
+    - simpl; split; try tauto.
+      destruct (decP a); tauto.
+  Qed.
+
+  Lemma decP_inv : forall x, {~ P x} + {~ (~ P x)}.
+  Proof.
+    intro x.
+    destruct (decP x); auto.
+  Qed.
+
+  Definition dec_vec_some {n} (v : vec A n)
+    : {vec_some P v} + {~ (vec_some P v)} :=
+    let (s2aH, a2sH) := vec_some_as_vec_all v in
+    match dec_vec_all decP_inv v with
+    | left allH => right (fun someH => s2aH someH allH)
+    | right notallH => left (a2sH notallH)
+    end.
+End dec_vec_some.
+
+Arguments vec_some_as_vec_all {A P} decP {n} v.
+Arguments dec_vec_some {A P} decP {n} v.
+
 Lemma vec_cons_eq_intro {A a a'} {n} {v v' : vec A n}
   : a = a' -> v = v' -> vcons A a n v = vcons A a' n v'.
 Proof.
