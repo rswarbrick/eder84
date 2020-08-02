@@ -413,9 +413,35 @@ Section Term.
     apply term_height_subst.
   Qed.
 
+  (** * Free variables
+
+      A term may have free variables. This is a set, so we encode it
+      as a predicate: [term_fv t v] means "v is a free variable in
+      t". This is extended by union in the obvious way to sets of
+      terms and sets of sets of terms.
+
+      This matches the notation in 2.8 in Eder's paper.
+
+   *)
+  Fixpoint term_fv (t : Term) (v : V) : Prop :=
+    match t with
+    | varTerm v' => v = v'
+    | funTerm f ts => vec_some (fun t => term_fv t v) ts
+    end.
+
+  Definition termset_fv (P : Term -> Prop) (v : V) : Prop :=
+    exists t : Term, P t /\ term_fv t v.
+
+  Definition termsetset_fv (P : (Term -> Prop) -> Prop) (v : V) : Prop :=
+    exists M : Term -> Prop, P M /\ termset_fv M v.
+
 End Term.
 
 Arguments comp_subst {L} sigma tau.
 Arguments term_height {L} t.
 Arguments term_height_subst {L s}.
 Arguments term_height_comp_subst {L s' s v}.
+
+Arguments term_fv {L} t v.
+Arguments termset_fv {L} P v.
+Arguments termsetset_fv {L} P v.
