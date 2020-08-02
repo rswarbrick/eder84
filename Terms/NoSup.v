@@ -28,8 +28,12 @@ Inductive V := Vx | Vy | Vz.
 Inductive F := Ff.
 Definition a (f : F) : nat := 2.
 
-(* Our set of variables is finite (with cardinality 3) and
-   decidable. *)
+(**
+
+  Our set of variables is finite (with cardinality 3) and has
+  decidable equality.
+
+*)
 
 Lemma fullV : Full (Vx :: Vy :: Vz :: nil).
 Proof.
@@ -45,7 +49,7 @@ Definition L := LType V F a.
 
 (** Constructing terms with vectors is a little cumbersome. [mkF] is a
     helper for applying the binary operation [Ff]. As you'd hope,
-    [mkF] is injective. *)
+    [mkF] is injective in both its arguments. *)
 
 Definition mkF (t0 t1 : Term L) : Term L :=
   funTerm L Ff (VectorDef.cons _ t0 1 (VectorDef.cons _ t1 O (VectorDef.nil _))).
@@ -66,8 +70,12 @@ Proof.
   intro eqH; injection eqH; auto.
 Qed.
 
-(** We have rewrites for the action of subst_endo on mkF and mkV. It
-    acts as a homomorphism as you'd hope. *)
+(**
+
+  We have rewrites for the action of subst_endo on mkF and mkV, saying that it
+  acts as a homomorphism in the way you'd expect.
+
+*)
 
 Lemma subst_endo_mkF s t0 t1
   : subst_endo L s (mkF t0 t1) = mkF (subst_endo L s t0) (subst_endo L s t1).
@@ -89,14 +97,18 @@ Definition sigma : Subst L := fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
 
 Definition tau : Subst L := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
 
-(** In Eder's paper, he talks about the set containing [sigma] and
-    [tau]. We define sets of substitutions implicitly using predicates
-    [P : Subst -> Prop]. We want to show that this set is bounded
-    above but has no supremum.
+(**
 
-    We also define elimination and introduction rules for being an
-    upper bound over [in_st]. (There are two elements in the set, so
-    it's pretty easy to see what you have to do!) *)
+  In Eder's paper, he talks about the set containing [sigma] and
+  [tau]. We define sets of substitutions implicitly using predicates
+  [P : Subst -> Prop]. The point of the example is that this set is
+  bounded above but has no supremum.
+
+  We can define elimination and introduction rules for being an upper
+  bound over [in_st]. (There are two elements in the set, so it's
+  pretty easy to see what you have to do!)
+
+*)
 
 Definition in_st (s : Subst L) : Prop := s = sigma \/ s = tau.
 
@@ -231,34 +243,42 @@ Proof.
     intro v; destruct v; auto.
 Qed.
 
-(** * Supremums for [in_st]
+(** * The shape of supremums for [in_st]
 
-    We have shown that a substitution is an upper bound if and only if
-    it maps every v to some [quad_term]. If the substitution is to be
-    a supremum as well, the entries in the quad term must themselves
-    be variables. This can be written as [Quad mkV].
+    We have shown that a substitution is an upper bound if and only if it maps
+    every v to some fixed [quad_term]. In normal mathematical notation, that
+    can be written as [rho(v) = f(f(s1, s2), f(s3, s4))] for some terms [s1,
+    ..., s4]. In our development, this is a quad term, [mkQuad _ s1 s2 s3 s4].
 
-    This holds because any substitution that maps to a quad of
-    variables (for example, [cvquad Vx]) is of the correct form to be
-    an upper bound.
+    If the substitution is to be a supremum as well, the entries in the quad
+    term must themselves be variables. That is, it should be of type [Quad
+    mkV].
 
-    This is surprisingly difficult to prove. The problem is that we
-    don't immediately get variables in our equations, where we can
-    destruct the terms to see what's going on. To avoid a horrible
-    mess, we use the [term_height] function. The point is that
-    [term_height (quad_term q)] is zero iff [q] only contains
-    variables.
- *)
+    Why should this be true? Firstly note that any quad, [QV], composed of
+    variables gives an upper bound. For some other quad, [Q], to be a supremum,
+    we need it to be more general than the [QV]. But that means we need to
+    write [QV] as a composition of [Q] with some other substitution. The
+    easiest way to see that this requires the terms in the [Q] to be variables
+    is to use a tree height.
+
+*)
+
+Lemma var_quad_is_ub (v0 v1 v2 v3 : V)
+  : Generality.subst_ub L in_st
+                        (fun v => (quad_term (mkQuad _ mkV v0 v1 v2 v3))).
+Proof.
+  set (q := mkQuad _ id (mkV v0) (mkV v1) (mkV v2) (mkV v3)).
+  apply (@ub_if_form q).
+  intro v.
+  auto.
+Qed.
 
 Definition cvquad (v : V) : Quad mkV := mkQuad _ _ v v v v.
 Definition cvquad_subst (v : V) : Subst L := fun v' => quad_term (cvquad v).
 
-Lemma cvquad_is_ub (v : V)
-  : Generality.subst_ub L in_st (cvquad_subst v).
+Lemma cvquad_is_ub (v : V) : Generality.subst_ub L in_st (cvquad_subst v).
 Proof.
-  set (q := mkQuad _ id (mkV v) (mkV v) (mkV v) (mkV v)).
-  apply (@ub_if_form q).
-  intro v'; auto.
+  apply var_quad_is_ub.
 Qed.
 
 Lemma height_cvquad_subst_v {v v' : V}
@@ -366,4 +386,141 @@ Proof.
   destruct (lbH _ (cvquad_is_ub Vx)) as [ rho' rho'H ]; clear lbH.
   destruct (comp_subst_quad_to_var (tqH Vx) (rho'H Vx)) as [ q qH ].
   exists q; congruence.
+Qed.
+
+(**
+
+  * Distinct pairs in supremums
+
+  We're getting steadily closer to a contradiction. We know that any supremum
+  must be of the form [mkQuad _ mkV v0 v1 v2 v3]. But we can further prove that
+  the variables must be pairwise distinct. The point is that if they were not
+  distinct, we could exhibit some other upper bound that didn't factor through
+  the quad.
+
+  For example, suppose [v0 = v1]. Then the quad given by [mkQuad _ mkV Vx Vy v2
+  v3] would not factor properly. Of course, there are now 6 inequalities we
+  must prove. Eugh.
+
+*)
+
+Section distinct.
+  Variable   rho     : Subst L.
+  Hypothesis sup_rho : Generality.subst_sup L in_st rho.
+
+  Variables  v0 v1 v2 v3 : V.
+  Hypothesis rho_q : forall v, rho v = quad_term (mkQuad _ mkV v0 v1 v2 v3).
+
+  Lemma rho_for_vars (vv0 vv1 vv2 vv3 : V)
+    : exists rho',
+      rho' v3 = mkV vv3 /\
+      rho' v2 = mkV vv2 /\
+      rho' v1 = mkV vv1 /\
+      rho' v0 = mkV vv0.
+  Proof.
+    destruct sup_rho as [ _ lbH ].
+    destruct (lbH _ (var_quad_is_ub vv0 vv1 vv2 vv3)) as [ rho' rho'H ]; clear lbH.
+    exists rho'.
+    specialize (rho_q Vx); simpl in rho_q.
+    specialize (rho'H Vx); unfold comp_subst, compose in rho'H; simpl in rho'H.
+    rewrite rho_q in rho'H; simpl in rho'H.
+    injection rho'H; clear rho'H.
+    auto.
+  Qed.
+
+  Lemma distinct_01
+    : v0 <> v1.
+  Proof.
+    destruct (rho_for_vars Vx Vy v2 v3) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq0; rewrite eq0 in eq1; inversion eq1.
+  Qed.
+
+  Lemma distinct_02
+    : v0 <> v2.
+  Proof.
+    destruct (rho_for_vars Vx v1 Vy v3) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq0; rewrite eq0 in eq2; inversion eq2.
+  Qed.
+
+  Lemma distinct_03
+    : v0 <> v3.
+  Proof.
+    destruct (rho_for_vars Vx v1 v2 Vy) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq0; rewrite eq0 in eq3; inversion eq3.
+  Qed.
+
+  Lemma distinct_12
+    : v1 <> v2.
+  Proof.
+    destruct (rho_for_vars v0 Vx Vy v3) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq1; rewrite eq1 in eq2; inversion eq2.
+  Qed.
+
+  Lemma distinct_13
+    : v1 <> v3.
+  Proof.
+    destruct (rho_for_vars v0 Vx v2 Vy) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq1; rewrite eq1 in eq3; inversion eq3.
+  Qed.
+
+  Lemma distinct_23
+    : v2 <> v3.
+  Proof.
+    destruct (rho_for_vars v0 v1 Vx Vy) as [ rho' [ eq3 [ eq2 [ eq1 eq0 ] ] ] ].
+    intro H; rewrite H in eq2; rewrite eq2 in eq3; inversion eq3.
+  Qed.
+
+  (**
+
+    With these inequalities in hand, we can finally derive a contradiction: we
+    have four pairwise distinct variables, but each is X, Y or Z. I suppose you
+    could do this with some sort of cardinality analysis, but the brute force
+    approach turns out not to be too painful.
+
+   *)
+
+  Lemma distinct_contradiction
+    : False.
+  Proof.
+    case_eq v0; case_eq v1; intros H1 H0;
+      try (rewrite <- H1 in H0; exact (distinct_01 H0));
+      case_eq v2; intros H2;
+        try (first [ rewrite <- H2 in H0; exact (distinct_02 H0)
+                   | rewrite <- H2 in H1; exact (distinct_12 H1)]);
+        case_eq v3; intros H3;
+          try (first [ rewrite <- H3 in H0; exact (distinct_03 H0)
+                     | rewrite <- H3 in H1; exact (distinct_13 H1)
+                     | rewrite <- H3 in H2; exact (distinct_23 H2) ]).
+  Qed.
+End distinct.
+
+(**
+
+  * There is no supremum for sigma and tau
+
+  We can finally prove that the example has the desired property: sigma and tau
+  have no supremum.
+
+*)
+Lemma no_sup rho
+  : ~ Generality.subst_sup L in_st rho.
+Proof.
+  intro supH.
+  destruct (form_if_sup supH) as [ q qH ].
+  destruct q as [ v0 v1 v2 v3 ].
+  exact (distinct_contradiction rho supH v0 v1 v2 v3 qH).
+Qed.
+
+Lemma bounded
+  : exists rho, Generality.subst_ub L in_st rho.
+Proof.
+  exists (cvquad_subst Vx).
+  apply cvquad_is_ub.
+Qed.
+
+Lemma example_27
+  : (exists rho, Generality.subst_ub L in_st rho) /\
+    (forall rho, ~ Generality.subst_sup L in_st rho).
+Proof.
+  auto using bounded, no_sup.
 Qed.
