@@ -276,6 +276,12 @@ Section Term.
     exact eq_refl.
   Qed.
 
+  (** Define the image of a substitution: the terms that you get when
+      applying the substitution to each variable in [V]. The set is
+      encoded as a predicate. *)
+  Definition subst_im (s : V -> Term) (t : Term) : Prop :=
+    exists v, t = s v.
+
   (** * Finite substitutions
 
       Now we get to an important definition: [fin_subst]. Eder is only
@@ -384,6 +390,24 @@ Section Term.
     apply restrict_preserves_fin_mod.
   Qed.
 
+  (** If variables have decidable equality then [mod_elt varTerm] is
+      decidable. You might expect to need full decidable equality on
+      terms, but you don't. *)
+
+  Lemma dec_mod_elt_varTerm
+        (decV : forall v w : V, {v = w} + {v <> w})
+        (sigma : V -> Term)
+        (v : V)
+    : {mod_elt varTerm sigma v} + {~ mod_elt varTerm sigma v}.
+  Proof.
+    unfold mod_elt.
+    destruct (sigma v) as [ w | ]; clear sigma.
+    - destruct (decV v w) as [ eqH | neH ].
+      + right; rewrite eqH; auto.
+      + left; injection; auto.
+    - left; discriminate.
+  Qed.
+
   (** * Heights
 
       When trying to show things about terms, it's sometimes useful to
@@ -423,17 +447,135 @@ Section Term.
       This matches the notation in 2.8 in Eder's paper.
 
    *)
+
   Fixpoint term_fv (t : Term) (v : V) : Prop :=
     match t with
     | varTerm v' => v = v'
     | funTerm f ts => vec_some (fun t => term_fv t v) ts
     end.
 
-  Definition termset_fv (P : Term -> Prop) (v : V) : Prop :=
-    exists t : Term, P t /\ term_fv t v.
+  Definition termset_fv (M : Term -> Prop) (v : V) : Prop :=
+    exists t : Term, M t /\ term_fv t v.
 
   Definition termsetset_fv (P : (Term -> Prop) -> Prop) (v : V) : Prop :=
     exists M : Term -> Prop, P M /\ termset_fv M v.
+
+
+  (**
+
+    Eder makes some remarks in part 2.9. The first is "the
+    intersection of V and M is a subset of V(M)". This takes a bit of
+    decoding if V isn't considered a subset of the set of terms. The
+    point is that if you have a set of terms, M, then each of the
+    variables in that set (the intersection between V and M) appear as
+    a free variable of the set.
+
+    We can formalise this, but need some injections into the set of
+    terms and the statement ends up looking a little different.
+
+  *)
+
+  Lemma var_in_M_is_free_var (M : Term -> Prop) (v : V)
+    : M (varTerm v) -> termset_fv M v.
+  Proof.
+    exists (varTerm v); simpl; auto.
+  Qed.
+
+  (**
+
+    The second remark of 2.9 is "If sigma is a substitution, then V is
+    equal to D(sigma) union V(sigma V) and is a subset of D(sigma)
+    union sigma V."
+
+    To make sense of this in our development, recall that D(sigma) is
+    the domain of sigma: the set of variables that aren't mapped to
+    themselves. The predicate for this is [mod_elt varTerm sigma].
+
+    Then the first part of the statement says that every variable is
+    either mapped non-trivially by sigma or is a free variable of the
+    set of terms that you get by applying sigma to each variable. The
+    point is that if sigma fixes a variable, v, then v will be an
+    element of sigma V and thus it will (trivially) be a free variable
+    of that set of terms.
+
+    Note that this needs the law of excluded middle (a variable is in
+    the domain or isn't). If equality is decidable on V, we can use
+    [dec_mod_elt_varTerm] for this. The proof is a little ugly because
+    you end up with a double negation (if [mod_elt] is false then
+    you're saying that something is "not not equal"). If we need this
+    logic lots, we could factor out a negated version of
+    [dec_mod_elt_varTerm].
+
+    The second part of the statement is essentially the same point,
+    except that we're considering V as a set of terms and noticing
+    that every term that's a variable either appears in the domain of
+    sigma or in its image. We don't prove that separately: it's
+    basically the same statement, and is ugly to state because of all
+    the bouncing between [V] and [Term]. *)
+
+  Lemma mod_elt_or_free_in_image_as_var
+        (decV : forall v w : V, {v = w} + {v <> w})
+        (sigma : V -> Term)
+        (v : V)
+    : mod_elt varTerm sigma v \/ termset_fv (subst_im sigma) v.
+  Proof.
+    destruct (dec_mod_elt_varTerm decV sigma v) as [ | not_mod_eltH ]; auto.
+    right; exists (sigma v); split.
+    - exists v; auto.
+    - revert not_mod_eltH.
+      unfold mod_elt.
+      case_eq (sigma v).
+      + intros w sigmavH vtH.
+        destruct (decV v w) as [ eqH | neH ]; auto.
+        contradiction vtH.
+        injection; auto.
+      + intros f ts sigmavH ftH.
+        contradiction ftH.
+        discriminate.
+  Qed.
+
+  (**
+
+    The third remark in 2.9 supposes that you have a substitution,
+    tau. Then two substitutions, sigma and sigma' have the same
+    compositions with tau (i.e. sigma tau = sigma' tau) if sigma and
+    sigma' agree on all free variables of tau V.
+
+    This is obvious of [tau v] is itself a variable. Less obvious if
+    it's some general term: in that case, you actually have to do
+    induction over the resulting term. The proof ends up being
+    repeated applications of generalize to simplify the types enough
+    to allow us to induct over the term first and then a function
+    term's children.
+
+   *)
+
+  Lemma comp_subst_determined_by_fvs (tau sigma sigma' : V -> Term)
+    : (forall v, termset_fv (subst_im tau) v -> sigma v = sigma' v) ->
+      forall v, comp_subst sigma tau v = comp_subst sigma' tau v.
+  Proof.
+    intros eqH v.
+    unfold comp_subst, compose.
+    unfold subst_endo at 2 4.
+
+    assert (forall w, term_fv (tau v) w -> sigma w = sigma' w) as H.
+    - intros w fvH.
+      apply eqH.
+      unfold termset_fv.
+      exists (tau v).
+      split; auto.
+      exists v; auto.
+    - clear eqH; revert H; generalize (tau v); clear tau v.
+      apply (Term_ind' (fun t => _ -> _ t = _ t)).
+      + intros v H; apply H; unfold term_fv; auto.
+      + intros f ts allH H; simpl.
+        apply f_equal, vec_map_ext.
+        apply (vec_all_modus_ponens ts allH); clear allH.
+        revert H; simpl.
+        generalize ts; clear ts; generalize (a f); clear f.
+        intros n ts.
+        induction ts; simpl; auto.
+  Qed.
 
 End Term.
 
@@ -443,5 +585,9 @@ Arguments term_height_subst {L s}.
 Arguments term_height_comp_subst {L s' s v}.
 
 Arguments term_fv {L} t v.
-Arguments termset_fv {L} P v.
+Arguments termset_fv {L} M v.
 Arguments termsetset_fv {L} P v.
+
+Arguments var_in_M_is_free_var {L} M v.
+Arguments mod_elt_or_free_in_image_as_var {L} decV sigma v.
+Arguments comp_subst_determined_by_fvs {L} tau sigma sigma'.

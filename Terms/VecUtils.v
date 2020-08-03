@@ -97,6 +97,17 @@ End dec_vec_all.
 
 Arguments dec_vec_all {A P} decP {n} v.
 
+(** A version of modus ponens for vec_all *)
+
+Lemma vec_all_modus_ponens
+      {A : Type} {P Q : A -> Prop} {n} (v : vec A n)
+  : vec_all (fun a => P a -> Q a) v ->
+    vec_all P v -> vec_all Q v.
+Proof.
+  induction v as [ | a n v IH ]; auto.
+  simpl; intros [ pqH allpqH ] [ paH allpH ]; split; auto.
+Qed.
+
 (** * [vec_some]
 
   This is the existential version of [vec_all]. If everything is
