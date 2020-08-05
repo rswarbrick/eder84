@@ -73,28 +73,52 @@ Hint Resolve vec_all_nil : vec.
 Hint Resolve vec_all_cons : vec.
 Hint Resolve vec_all_singleton : vec.
 
+Definition dec_proc_to_sumbool
+           {A : Type}
+           {P : A -> Prop}
+           {f : A -> bool}
+           (H: forall a, P a <-> is_true (f a))
+           (a : A)
+  : {P a} + {~ P a} :=
+  Bool.reflect_dec _ _ (Bool.iff_reflect (P a) (f a) (H a)).
+
 (** As you might expect from the executable definition, [vec_all P] is
-    decidable if [P] is decidable. We prove that here. *)
+    decidable if [P] is decidable. We prove that here by defining a
+    decision procedure and then proving its correctness. *)
 
 Section dec_vec_all.
   Variable A : Type.
   Variable P : A -> Prop.
   Hypothesis decP : forall x : A, {P x} + {~ (P x)}.
 
-  Fixpoint dec_vec_all {n} (v : vec A n) : {vec_all P v} + {~ (vec_all P v)} :=
+  Fixpoint check_vec_all {n} (v : vec A n) : bool :=
     match v with
-    | vnil _ => left (vec_all_nil P)
+    | vnil _ => true
     | vcons _ a _ v' =>
       match decP a with
-      | left paH => match dec_vec_all v' with
-                    | left restH => left (vec_all_cons paH restH)
-                    | right nrestH => right (not_vec_all_cons1 a nrestH)
-                    end
-      | right nH => right (not_vec_all_cons0 nH)
+      | left paH => check_vec_all v'
+      | right nH => false
       end
     end.
+
+  Lemma check_vec_all_correct {n} (v : vec A n)
+    : vec_all P v <-> is_true (check_vec_all v).
+  Proof.
+    induction v as [ | a n v IH ]; simpl; unfold is_true, iff; auto.
+    destruct (decP a) as [ pH | npH ];
+      destruct IH as [ IHl IHr ]; try tauto.
+    split.
+    + intros [ H _ ]; auto.
+    + intros ftH; contradiction Bool.diff_false_true.
+  Qed.
+
+  Definition dec_vec_all {n} (v : vec A n)
+    : {vec_all P v} + {~ (vec_all P v)} :=
+    dec_proc_to_sumbool check_vec_all_correct v.
+
 End dec_vec_all.
 
+Arguments check_vec_all {A P} decP {n} v.
 Arguments dec_vec_all {A P} decP {n} v.
 
 (** A version of modus ponens for vec_all *)
@@ -207,16 +231,28 @@ Section dec_vec_some.
     destruct (decP x); auto.
   Qed.
 
+  Definition check_vec_some {n} (v : vec A n) : bool :=
+    negb (check_vec_all decP_inv v).
+
+  Lemma check_vec_some_correct {n} (v : vec A n)
+    : vec_some P v <-> is_true (check_vec_some v).
+  Proof.
+    rewrite vec_some_as_vec_all.
+    rewrite (check_vec_all_correct _ _ decP_inv).
+    unfold check_vec_some.
+    unfold is_true; rewrite Bool.negb_true_iff.
+    rewrite Bool.not_true_iff_false.
+    tauto.
+  Qed.
+
   Definition dec_vec_some {n} (v : vec A n)
     : {vec_some P v} + {~ (vec_some P v)} :=
-    let (s2aH, a2sH) := vec_some_as_vec_all v in
-    match dec_vec_all decP_inv v with
-    | left allH => right (fun someH => s2aH someH allH)
-    | right notallH => left (a2sH notallH)
-    end.
+    dec_proc_to_sumbool check_vec_some_correct v.
+
 End dec_vec_some.
 
 Arguments vec_some_as_vec_all {A P} decP {n} v.
+Arguments check_vec_some {A P} decP {n} v.
 Arguments dec_vec_some {A P} decP {n} v.
 
 Lemma vec_cons_eq_intro {A a a'} {n} {v v' : vec A n}
