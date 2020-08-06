@@ -13,6 +13,22 @@ Notation vnil := VectorDef.nil.
 Notation vcons := VectorDef.cons.
 Notation vsing := (fun a => vcons _ a _ (vnil _)).
 
+Definition dec_proc_to_sumbool
+           {A : Type}
+           {P : A -> Prop}
+           {f : A -> bool}
+           (H: forall a, P a <-> is_true (f a))
+           (a : A)
+  : {P a} + {~ P a} :=
+  Bool.reflect_dec _ _ (Bool.iff_reflect (P a) (f a) (H a)).
+
+Definition dec_is_true_or_not (b : bool)
+  : {is_true b} + {~ is_true b} :=
+  match b with
+  | true => left eq_refl
+  | false => right Bool.diff_false_true
+  end.
+
 (** * [vec_all]
 
     We define [vec_all] to hold for a vector when the associated
@@ -72,15 +88,6 @@ Arguments not_vec_all_cons1 {A P} a {n v} nvH.
 Hint Resolve vec_all_nil : vec.
 Hint Resolve vec_all_cons : vec.
 Hint Resolve vec_all_singleton : vec.
-
-Definition dec_proc_to_sumbool
-           {A : Type}
-           {P : A -> Prop}
-           {f : A -> bool}
-           (H: forall a, P a <-> is_true (f a))
-           (a : A)
-  : {P a} + {~ P a} :=
-  Bool.reflect_dec _ _ (Bool.iff_reflect (P a) (f a) (H a)).
 
 (** As you might expect from the executable definition, [vec_all P] is
     decidable if [P] is decidable. We prove that here by defining a
@@ -254,6 +261,45 @@ End dec_vec_some.
 Arguments vec_some_as_vec_all {A P} decP {n} v.
 Arguments check_vec_some {A P} decP {n} v.
 Arguments dec_vec_some {A P} decP {n} v.
+
+(** Specialized forms of [vec_all] and [vec_some] for boolean functions *)
+
+Section dec_vecb.
+  Variable A : Type.
+  Variable f : A -> bool.
+
+  Definition vec_allb {n} (v : vec A n) : Prop :=
+    vec_all (fun a => is_true (f a)) v.
+
+  Definition check_vec_allb {n} (v : vec A n)  : bool :=
+    check_vec_all (fun a => dec_is_true_or_not (f a)) v.
+
+  Lemma check_vec_allb_correct {n} (v : vec A n)
+    : vec_allb v <-> is_true (check_vec_allb v).
+  Proof.
+    apply check_vec_all_correct.
+  Qed.
+
+  Definition dec_vec_allb {n} (v : vec A n)
+    : {vec_allb v} + {~ vec_allb v} :=
+    dec_proc_to_sumbool check_vec_allb_correct v.
+
+  Definition vec_someb {n} (v : vec A n) : Prop :=
+    vec_some (fun a => is_true (f a)) v.
+
+  Definition check_vec_someb {n} (v : vec A n)  : bool :=
+    check_vec_some (fun a => dec_is_true_or_not (f a)) v.
+
+  Lemma check_vec_someb_correct {n} (v : vec A n)
+    : vec_someb v <-> is_true (check_vec_someb v).
+  Proof.
+    apply check_vec_some_correct.
+  Qed.
+
+  Definition dec_vec_someb {n} (v : vec A n)
+    : {vec_someb v} + {~ vec_someb v} :=
+    dec_proc_to_sumbool check_vec_someb_correct v.
+End dec_vecb.
 
 Lemma vec_cons_eq_intro {A a a'} {n} {v v' : vec A n}
   : a = a' -> v = v' -> vcons A a n v = vcons A a' n v'.
