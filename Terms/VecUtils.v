@@ -299,6 +299,29 @@ Section dec_vecb.
   Definition dec_vec_someb {n} (v : vec A n)
     : {vec_someb v} + {~ vec_someb v} :=
     dec_proc_to_sumbool check_vec_someb_correct v.
+
+  Lemma check_vec_someb_nil
+    : check_vec_someb (vnil A) = false.
+  Proof.
+    unfold check_vec_someb, check_vec_some; auto.
+  Qed.
+
+  Lemma check_vec_someb_cons {n} (a : A) (v : vec A n)
+    : check_vec_someb (vcons A a n v) = orb (f a) (check_vec_someb v).
+  Proof.
+    unfold check_vec_someb at 1.
+    unfold check_vec_some.
+    simpl.
+    destruct (decP_inv A _ _ a) as [ noH | yesH ].
+    - unfold is_true in noH.
+      rewrite (Bool.not_true_is_false (f a) noH); simpl; clear noH.
+      reflexivity.
+    - revert yesH; unfold is_true.
+      case (f a); auto.
+      intro H; contradiction H.
+      apply Bool.diff_false_true.
+  Qed.
+
 End dec_vecb.
 
 Lemma vec_cons_eq_intro {A a a'} {n} {v v' : vec A n}

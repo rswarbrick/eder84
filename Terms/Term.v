@@ -10,12 +10,27 @@ Require Import PeanoNat.
 Require Vectors.Fin.
 Require Vectors.VectorDef.
 Require Import Program.Basics.
+Require Import Bool.
 
 Require Import Top.Terms.VecUtils.
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.ListMod.
 
 Definition vec := VectorDef.t.
+
+Lemma orb_elim_left a b c
+  : orb a b = orb a c -> orb a (eqb b c) = true.
+Proof.
+  destruct a, b, c; auto.
+Qed.
+
+Lemma orb_intro_left a b c
+  : is_true a \/ b = c -> orb a b = orb a c.
+Proof.
+  destruct a; unfold is_true; simpl; auto.
+  intro H; destruct H as [ eqFT | ]; auto.
+  contradiction (diff_false_true eqFT).
+Qed.
 
 (** * Terms
 
@@ -448,18 +463,100 @@ Section Term.
 
    *)
 
-  Fixpoint term_fv (t : Term) (v : V) : Prop :=
+  Fixpoint term_fv (v : V) (t : Term) : Prop :=
     match t with
     | varTerm v' => v = v'
-    | funTerm f ts => vec_some (fun t => term_fv t v) ts
+    | funTerm f ts => vec_some (term_fv v) ts
     end.
 
-  Definition termset_fv (M : Term -> Prop) (v : V) : Prop :=
-    exists t : Term, M t /\ term_fv t v.
+  Definition termset_fv (v : V) (M : Term -> Prop) : Prop :=
+    exists t : Term, M t /\ term_fv v t.
 
-  Definition termsetset_fv (P : (Term -> Prop) -> Prop) (v : V) : Prop :=
-    exists M : Term -> Prop, P M /\ termset_fv M v.
+  Definition termsetset_fv (v : V) (P : (Term -> Prop) -> Prop) : Prop :=
+    exists M : Term -> Prop, P M /\ termset_fv v M.
 
+  (**
+
+    If we have decidable equality on terms, there's a decision procedure to
+    check whether a variable is free in a given term. Sadly, we can't use
+    [check_vec_someb] for checking through the vector of a [funTerm] (because
+    we'd be passing [check_term_fv decV v] as the function to map, which isn't
+    a structural recursion).
+
+   *)
+  Fixpoint check_term_fv
+           (decV : forall v w : V, {v = w} + {v <> w})
+           (v : V) (t : Term) : bool :=
+    match t with
+    | varTerm w => if decV v w then true else false
+    | funTerm f ts =>
+      let fix ff n ts' :=
+          match ts' with
+          | vnil _ => false
+          | vcons _ t _ ts'' => orb (check_term_fv decV v t) (ff _ ts'')
+          end
+      in
+      ff _ ts
+    end.
+
+  (**
+
+    We couldn't use [check_vec_someb] in [check_term_fv] because of the
+    termination checker, but we can use it now. Check that we wrote down the
+    formula we intended to.
+
+   *)
+  Lemma check_term_fv_funTerm decV v f ts
+    : check_term_fv decV v (funTerm f ts) =
+      check_vec_someb _ (check_term_fv decV v) ts.
+  Proof.
+    simpl.
+    revert ts; generalize (a f).
+    induction ts as [ | t n ts IH ]; auto.
+    rewrite check_vec_someb_cons.
+    apply orb_intro_left; auto.
+  Qed.
+
+  Lemma check_term_fv_correct
+        (decV : forall v w : V, {v = w} + {v <> w})
+        (v : V) (t : Term)
+    : term_fv v t <-> is_true (check_term_fv decV v t).
+  Proof.
+    apply (Term_ind' (fun t' => _ t' <-> is_true (_ t'))).
+    - intro w.
+      simpl; destruct (decV v w); unfold is_true; try tauto.
+      split.
+      + contradiction.
+      + intro ftH; contradiction (Bool.diff_false_true ftH).
+    - intros f ts allH.
+      rewrite check_term_fv_funTerm.
+      unfold term_fv; fold term_fv.
+      revert ts allH; generalize (a f); clear f t.
+      intros n ts.
+      induction ts as [ | a n ts IH ].
+      + simpl; rewrite check_vec_someb_nil; unfold is_true.
+        split; auto using diff_false_true.
+      + simpl.
+        rewrite check_vec_someb_cons.
+        intros [ termH restH ].
+        specialize (IH restH); clear restH.
+        split.
+        * destruct 1 as [ H0 | H1 ].
+          -- rewrite termH in H0; rewrite H0; auto.
+          -- rewrite IH in H1; rewrite H1.
+             auto using orb_true_r.
+        * unfold is_true.
+          intro H.
+          destruct (orb_prop _ _ H) as [ H0 | H1 ].
+          -- rewrite <- termH in H0; auto.
+          -- rewrite <- IH in H1; auto.
+  Qed.
+
+  Definition dec_term_fv
+             (decV : forall v w : V, {v = w} + {v <> w})
+             (v : V) (t : Term)
+    : {term_fv v t} + {~ term_fv v t} :=
+    dec_proc_to_sumbool (check_term_fv_correct decV v) t.
 
   (**
 
@@ -475,8 +572,8 @@ Section Term.
 
   *)
 
-  Lemma var_in_M_is_free_var (M : Term -> Prop) (v : V)
-    : M (varTerm v) -> termset_fv M v.
+  Lemma var_in_M_is_free_var (v : V) (M : Term -> Prop)
+    : M (varTerm v) -> termset_fv v M.
   Proof.
     exists (varTerm v); simpl; auto.
   Qed.
@@ -517,7 +614,7 @@ Section Term.
         (decV : forall v w : V, {v = w} + {v <> w})
         (sigma : V -> Term)
         (v : V)
-    : mod_elt varTerm sigma v \/ termset_fv (subst_im sigma) v.
+    : mod_elt varTerm sigma v \/ termset_fv v (subst_im sigma).
   Proof.
     destruct (dec_mod_elt_varTerm decV sigma v) as [ | not_mod_eltH ]; auto.
     right; exists (sigma v); split.
@@ -551,14 +648,14 @@ Section Term.
    *)
 
   Lemma comp_subst_determined_by_fvs (tau sigma sigma' : V -> Term)
-    : (forall v, termset_fv (subst_im tau) v -> sigma v = sigma' v) ->
+    : (forall v, termset_fv v (subst_im tau) -> sigma v = sigma' v) ->
       forall v, comp_subst sigma tau v = comp_subst sigma' tau v.
   Proof.
     intros eqH v.
     unfold comp_subst, compose.
     unfold subst_endo at 2 4.
 
-    assert (forall w, term_fv (tau v) w -> sigma w = sigma' w) as H.
+    assert (forall w, term_fv w (tau v) -> sigma w = sigma' w) as H.
     - intros w fvH.
       apply eqH.
       unfold termset_fv.
@@ -584,10 +681,10 @@ Arguments term_height {L} t.
 Arguments term_height_subst {L s}.
 Arguments term_height_comp_subst {L s' s v}.
 
-Arguments term_fv {L} t v.
-Arguments termset_fv {L} M v.
-Arguments termsetset_fv {L} P v.
+Arguments term_fv {L} v t.
+Arguments termset_fv {L} v M.
+Arguments termsetset_fv {L} v P.
 
-Arguments var_in_M_is_free_var {L} M v.
+Arguments var_in_M_is_free_var {L} v M.
 Arguments mod_elt_or_free_in_image_as_var {L} decV sigma v.
 Arguments comp_subst_determined_by_fvs {L} tau sigma sigma'.
