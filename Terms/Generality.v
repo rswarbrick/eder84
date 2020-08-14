@@ -2,6 +2,9 @@ Require Import Lists.List.
 Require Import Program.Basics.
 
 Require Import Top.Terms.Term.
+Require Import Top.Terms.VecUtils.
+Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.FinMod.
 
 (* First, we have to define the "more general than" relation on
    substitutions, abbreviated to smg.
@@ -51,3 +54,22 @@ Section smg.
     subst_lb P s /\ subst_ub (subst_lb P) s.
 
 End smg.
+
+(** * Elements that are [sequiv] are related by a permutation
+
+    This section is devoted to proving Lemma 2.10 from Eder's paper. This says
+    that if two substitutions are equivalent under the [smg] relation then
+    there are permutations that relabel them into each other.
+
+    The first big statement is that if you have a finite substitution, sigma,
+    then there are only finitely many variables that are not free variables in
+    the image of sigma. Why? Well, sigma leaves all but finitely many variables
+    untouched and these untouched variables will still be free in the image of
+    sigma.
+
+    We start by setting up a sigma type for the bound variables. We want to
+    show that [proj1_sig] on that sigma type is a finite projection.
+
+    TODO: Currently working on this in the BoundInImage module.
+
+*)

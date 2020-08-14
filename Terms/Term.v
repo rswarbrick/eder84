@@ -406,14 +406,17 @@ Section Term.
   Qed.
 
   (** If variables have decidable equality then [mod_elt varTerm] is
-      decidable. You might expect to need full decidable equality on
-      terms, but you don't. *)
+      decidable. However, [mod_elt varTerm] asks that two things are not equal
+      (the substitution should map an element to something different from
+      [varTerm]). This isn't great, because if it's false you have a double
+      negation, which you can't get rid of without the law of excluded middle.
+      Thus we unfold the double negation in the second part of the sumbool. *)
 
   Lemma dec_mod_elt_varTerm
         (decV : forall v w : V, {v = w} + {v <> w})
         (sigma : V -> Term)
         (v : V)
-    : {mod_elt varTerm sigma v} + {~ mod_elt varTerm sigma v}.
+    : {mod_elt varTerm sigma v} + {sigma v = varTerm v}.
   Proof.
     unfold mod_elt.
     destruct (sigma v) as [ w | ]; clear sigma.
@@ -621,14 +624,12 @@ Section Term.
     - exists v; auto.
     - revert not_mod_eltH.
       unfold mod_elt.
-      case_eq (sigma v).
-      + intros w sigmavH vtH.
-        destruct (decV v w) as [ eqH | neH ]; auto.
-        contradiction vtH.
-        injection; auto.
-      + intros f ts sigmavH ftH.
-        contradiction ftH.
-        discriminate.
+      case_eq (sigma v); try discriminate.
+      intros w sigmavH vtH.
+      destruct (decV v w) as [ | neH ]; auto.
+      assert (varTerm w <> varTerm v) as vtneH.
+      + injection; exact (not_eq_sym neH).
+      + contradiction vtneH.
   Qed.
 
   (**
