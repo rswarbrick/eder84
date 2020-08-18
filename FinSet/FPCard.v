@@ -13,6 +13,7 @@ Require Import Lists.List.
 Require Import PeanoNat.
 Require Import Bool.
 
+Require Import Top.FinSet.ProjSet.
 Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.Distinct.

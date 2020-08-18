@@ -1,12 +1,13 @@
 Require Import Lists.List.
 Require Import Program.Basics.
 
-Require Import Top.Terms.Term.
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.FinModComp.
-Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.FPCard.
+Require Import Top.FinSet.NatMap.
+Require Import Top.FinSet.ProjSet.
+Require Import Top.Terms.Term.
 
 (** A [var_subst] is like a substitution, but induced by a map [V ->
     V]. Composing on the left with [varTerm] gives the substitution

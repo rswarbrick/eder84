@@ -22,6 +22,7 @@ Require Import Program.Basics.
 Require Import Bool.
 
 Require Import Top.FinSet.NatMap.
+Require Import Top.FinSet.ProjSet.
 Require Import Top.FinSet.FinSet.
 
 (** * Basic definitions

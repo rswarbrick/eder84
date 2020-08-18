@@ -3,6 +3,7 @@ Require Import Decidable.
 
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.ProjSet.
 Require Import Top.Terms.Term.
 
 (* for dec_proc_to_sumbool: probably refactor this! *)

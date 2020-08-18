@@ -6,6 +6,7 @@ FinSet/ListMod.v
 FinSet/FinMod.v
 FinSet/FinModComp.v
 FinSet/FinSet.v
+FinSet/ProjSet.v
 FinSet/NatMap.v
 
 Terms/Generality.v

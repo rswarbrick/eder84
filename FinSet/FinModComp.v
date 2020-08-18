@@ -3,9 +3,10 @@ Require Import Lists.List.
 Require Import Program.Basics.
 
 Require Import Top.FinSet.FinMod.
+Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.ListMod.
 Require Import Top.FinSet.NatMap.
-Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.ProjSet.
 
 Section list_mod_cons.
   Variables A B : Type.
