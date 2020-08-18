@@ -5,6 +5,9 @@ Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.FinSet.
 Require Import Top.Terms.Term.
 
+(* for dec_proc_to_sumbool: probably refactor this! *)
+Require Import Top.Terms.VecUtils.
+
 (**
 
     At the start of Lemma 2.10, Eder investigates which variables are
@@ -56,6 +59,8 @@ Section fin_subst_bound_vars.
     ~ termset_fv v (subst_im L sigma).
 
   Definition bound_in_image : Type := sig is_bound_in_image.
+
+  Definition bound_image_var : bound_in_image -> Term.V L := @proj1_sig _ _.
 
   (**
 
@@ -174,10 +179,10 @@ Section fin_subst_bound_vars.
       until we can finally apply the intro/elim rules we just proved. *)
 
   Lemma check_bound_in_image_correct
-           (decV : forall v w : Term.V L, {v = w} + {v <> w})
-           (dom_elts : list (mod_dom (varTerm L) sigma))
-           (fullH : FullProj md_elt dom_elts)
-           (v : Term.V L)
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (fullH : FullProj md_elt dom_elts)
+        (v : Term.V L)
     : is_bound_in_image v <->
       is_true (check_bound_in_image decV (map md_elt dom_elts) v).
   Proof.
@@ -209,11 +214,17 @@ Section fin_subst_bound_vars.
   Qed.
 
   (** With this, we can finally prove that [is_bound_in_image] is
-      decidable. Note that we do this as a lemma (rather than defining
-      something with a sumbool). This is because unpacking a finite
-      substitution to get the full list of domain elements requires
-      introspection in Prop. Since the users of this fact are going to be
-      propositions themselves, unpacking an [or] shouldn't be an issue. *)
+      decidable. We have to pack this into a sumbool as shown so that
+      we can use it to define the maps in the finiteness proof
+      below. *)
+  Definition dec_bound_in_image
+             (decV : forall v w : Term.V L, {v = w} + {v <> w})
+             (dom_elts : list (mod_dom (varTerm L) sigma))
+             (fullH : FullProj md_elt dom_elts)
+             (v : Term.V L)
+    : {is_bound_in_image v} + {~ is_bound_in_image v} :=
+    dec_proc_to_sumbool (check_bound_in_image_correct decV dom_elts fullH) v.
+
   Lemma bound_in_image_decidable
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         (v : Term.V L)
@@ -224,7 +235,75 @@ Section fin_subst_bound_vars.
              _ _ (check_bound_in_image_correct decV dom_elts fullH) v).
   Qed.
 
-  (** TODO: Prove finiteness *)
+  (** We have a finite list of variables in the domain of sigma. We
+      know that every variable that is bound in the image is one of
+      these variables, so we have a surjection from the domain of
+      sigma to the option type for variables that are bound in the
+      image (mapping those that turn out not to be to None).
+
+      The "downstairs" map (on variables) is the identity on those
+      that are bound in the image and maps others to None.
+
+   *)
+  Local Definition lo_map
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        (elts : list (Term.V L))
+        (v : Term.V L)
+    : option (Term.V L) :=
+    if check_bound_in_image decV elts v then Some v else None.
+
+  (** For the "upstairs" map, we need the full decision check (because
+      we need to know the object we make is indeed bound). *)
+  Local Definition hi_map
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (fullH : FullProj md_elt dom_elts)
+        (dom_elt : mod_dom (varTerm L) sigma)
+    : option bound_in_image :=
+    match dec_bound_in_image decV dom_elts fullH (md_elt dom_elt) with
+    | left bdH => Some (exist _ (proj1_sig dom_elt) bdH)
+    | right _ => None
+    end.
+
+  Lemma not_fixed_if_bound_in_image
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        v
+    : is_bound_in_image v -> mod_elt (varTerm L) sigma v.
+  Proof.
+    intros boundH fixedH.
+    destruct (free_in_image_iff_dom_elt_hits_it decV v) as [ _ H ].
+    specialize (H (or_introl fixedH)).
+    exact (boundH H).
+  Qed.
+
+  Lemma finite_bound_in_image
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+    : FiniteProj bound_image_var.
+  Proof.
+    destruct sigma_finiteH as [ dom_elts fullH ].
+    apply (finite_surj_option bound_image_var
+                              (hi_map decV dom_elts fullH)
+                              (lo_map decV (map md_elt dom_elts))
+                              sigma_finiteH).
+    - intro d.
+      destruct (check_bound_in_image_correct decV dom_elts fullH (md_elt d))
+        as [ bd2chk chk2bd ].
+      unfold hi_map, lo_map.
+      set (chk := (check_bound_in_image decV (map md_elt dom_elts) (md_elt d))).
+      fold chk in bd2chk, chk2bd.
+      destruct (dec_bound_in_image decV dom_elts fullH (md_elt d))
+        as [ bdH | notbdH ];
+        simpl.
+      + rewrite (bd2chk bdH); reflexivity.
+      + case_eq chk; auto.
+        intro chkH; contradiction (notbdH (chk2bd chkH)).
+    - intro bd.
+      destruct bd as [ v bdH ].
+      exists (exist _ _ (not_fixed_if_bound_in_image decV v bdH)); simpl.
+      unfold lo_map.
+      case_eq (check_bound_in_image decV (map md_elt dom_elts) v); auto.
+      rewrite <- Bool.not_true_iff_false.
+      rewrite <- (check_bound_in_image_correct decV dom_elts fullH v); tauto.
+  Qed.
 
 End fin_subst_bound_vars.
-
