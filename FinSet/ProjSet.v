@@ -274,4 +274,21 @@ Section dec.
     destruct inH as [ eqH | consH ]; contradiction.
   Qed.
 
+  (** We also show that [lift_proj'] is indeed a lift of the
+      projection.
+
+      TODO: The proof script is identical to [lift_proj_eq]: this
+      needs some tidying up! *)
+
+  Lemma proj_lift_proj' b l (inH : InProj p b l)
+    : p (lift_proj' b l inH) = b.
+  Proof.
+    induction l; try (contradiction inH).
+    simpl; unfold dec_in_inv.
+    destruct (decB (p a) b) as [ | neH ]; auto.
+    fold (map p).
+    destruct (in_dec decB b (map p l)) as [ | notinH ]; auto.
+    destruct inH as [ eqH | consH ]; contradiction.
+  Qed.
+
 End dec.
