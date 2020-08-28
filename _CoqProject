@@ -8,7 +8,6 @@ FinSet/FinModComp.v
 FinSet/FinSet.v
 FinSet/ProjSet.v
 FinSet/NatMap.v
-FinSet/Zip.v
 
 Terms/Generality.v
 Terms/Term.v
