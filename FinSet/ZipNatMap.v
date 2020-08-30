@@ -68,7 +68,75 @@ Section staged_proj.
     contradiction notinH; destruct (in_proj_inv inH); tauto.
   Qed.
 
+  Lemma lift_staged_proj_in b l a
+    : lift_staged_proj b l = Some a -> In a l.
+  Proof.
+    induction l as [ | a' l IH ]; [ discriminate | simpl ].
+    destruct (decB (q (p a')) b) as [ eqH | neH ]; auto.
+    intro someH; injection someH; auto.
+  Qed.
+
+  Lemma lift_staged_proj'_in b l inH
+    : In (lift_staged_proj' b l inH) l.
+  Proof.
+    eauto using lift_staged_proj_in, lift_staged_proj_some.
+  Qed.
+
+  Lemma proj_lift_staged_proj b l a
+    : lift_staged_proj b l = Some a -> q (p a) = b.
+  Proof.
+    induction l as [ | a' l IH ]; [ discriminate | simpl ].
+    destruct (decB (q (p a')) b) as [ eqH | neH ]; auto.
+    intro someH; injection someH; intro aH; rewrite <- aH; auto.
+  Qed.
+
+  Lemma proj_lift_staged_proj' b l inH
+    : q (p (lift_staged_proj' b l inH)) = b.
+  Proof.
+    eauto using proj_lift_staged_proj, lift_staged_proj_some.
+  Qed.
+
 End staged_proj.
+
+Section distinct.
+  Variables A B : Type.
+  Variable f : A -> B.
+
+  Lemma distinct_match_at a0 a1 l
+    : f a1 = f a0 ->
+      distinct (map f (a1 :: l)) ->
+      In a0 (a1 :: l) ->
+      a1 = a0.
+  Proof.
+    intros eqfH distinctH inH.
+    destruct distinctH as [ notinH _ ]; rewrite eqfH in notinH.
+    destruct inH as [ | inH ]; auto.
+    contradiction notinH; apply in_map; auto.
+  Qed.
+
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+
+  Lemma distinct_under_map_implies_inj l a a'
+    : distinct (map f l) ->
+      In a l ->
+      In a' l ->
+      f a = f a' ->
+      a = a'.
+  Proof.
+    intros distinctH in1H in2H eqH.
+    induction l as [ | a'' l IH ]; [ contradiction in1H | ].
+    destruct (decB (f a'') (f a)) as [ feqH | fneH ].
+    - rewrite <- (distinct_match_at feqH distinctH in1H).
+      exact (distinct_match_at (eq_trans feqH eqH) distinctH in2H).
+    - destruct in1H as [ | in1H ];
+        [ contradiction fneH; apply f_equal; auto | ].
+      destruct in2H as [ eqH' | in2H ];
+        [ contradiction fneH; rewrite (f_equal f eqH'); auto | ].
+      apply IH; eauto using distinct_uncons.
+  Qed.
+
+End distinct.
+
 
 (** Now we can define our natural map. We start by specialising the
     definitions and lemmas above to the case with pairs as
@@ -124,7 +192,23 @@ Section znm.
     : nat_map p1 p2 :=
     exist _ (top_map l fullH, bot_map fb l) (is_nat fb l fullH).
 
-  Definition pr_proj : A1 * A2 -> B1 := fun pr => p1 (fst pr).
+  Definition pr_proj1 : A1 * A2 -> B1 := fun pr => p1 (fst pr).
+  Definition pr_proj2 : A1 * A2 -> B2 := fun pr => p2 (snd pr).
+
+  Lemma zip_nat_map_in fb l fullH a1 a2
+    : nm_top (zip_nat_map fb l fullH) a1 = a2 ->
+      exists a1', p1 a1' = p1 a1 /\ In (a1', a2) l.
+  Proof.
+    unfold zip_nat_map; simpl.
+    unfold top_map, lift_pr_proj'.
+    set (pr := (lift_staged_proj' fst p1 decB1 (p1 a1) l (fullH a1))).
+    intro prH.
+    exists (fst pr); split.
+    - apply proj_lift_staged_proj'.
+    - rewrite <- prH.
+      rewrite <- surjective_pairing.
+      apply lift_staged_proj'_in.
+  Qed.
 
   (** How can we tell that we defined the "right" map? One obvious
       thing to expect is that if the list contains a pair [(a1, a2)]
@@ -133,55 +217,49 @@ Section znm.
       [p1 a1]. This is guaranteed, however, if the first elements of
       the pairs map to distinct elements. In our use case for
       constructing maps between sets based on their cardinalities,
-      this will definitely hold.
-
-      Before proving the main result, we prove a simple lemma that
-      unpacks distinctness to show that what looks like a match
-      (because it's got the right projection to [B1]) really is a
-      match. *)
-
-  Lemma distinct_match_at a1 a2 a1' a2' l
-    : p1 a1' = p1 a1 ->
-      distinct (map pr_proj ((a1', a2') :: l)) ->
-      In (a1, a2) ((a1', a2') :: l) ->
-      (a1', a2') = (a1, a2).
-  Proof.
-    intros eq1H distinctH inH.
-    destruct distinctH as [ notinH _ ]; revert notinH.
-    unfold pr_proj at 1; simpl; rewrite eq1H; intro notinH.
-    destruct inH as [ | inH ]; auto.
-    contradiction notinH; exact (in_map pr_proj l (a1, a2) inH).
-  Qed.
+      this will definitely hold. *)
 
   Lemma distinct_zip_nat_map_at fb l fullH a1 a2
-    : distinct (map pr_proj l) ->
+    : distinct (map pr_proj1 l) ->
       In (a1, a2) l ->
       nm_top (zip_nat_map fb l fullH) a1 = a2.
   Proof.
     intros distinctH prInH.
-    unfold zip_nat_map; simpl.
-    unfold top_map, lift_pr_proj'.
-    generalize (fullH a1); intro inH1; clear fullH.
-    induction l as [ | pr l IH ]; [ contradiction inH1 | ].
-    destruct pr as [ a1' a2' ].
-    unfold InProj in inH1; simpl in inH1;
-      fold (InProj p1 (p1 a1) (map fst l)) in inH1.
-    unfold lift_staged_proj'; fold (lift_staged_proj' fst p1 decB1 (p1 a1) l).
-    unfold dec_in_inv; fold (map fst l); fold (map p1 (map fst l)).
+    destruct (zip_nat_map_in fb l fullH a1 eq_refl)
+      as [ a1' [ p1H inH ] ].
+    exact (eq_sym (f_equal snd (distinct_under_map_implies_inj
+                                  pr_proj1 decB1 l _ _
+                                  distinctH prInH inH (eq_sym p1H)))).
+  Qed.
 
-    destruct (decB1 (p1 a1') (p1 a1)) as [ eqpH | nepH ].
-    - assert ((a1', a2') = (a1, a2)) as eqH; eauto using distinct_match_at.
-      assert (a1' = a1) as eq1H; [ exact (f_equal fst eqH) | ].
-      assert (a2' = a2) as eq2H; [ exact (f_equal snd eqH) | ]; clear eqH.
-      destruct (decB1 (p1 (fst (a1', a2'))) (p1 a1)) as [ | neH ]; auto.
-      contradiction neH; simpl; apply f_equal; auto.
-    - destruct (decB1 (p1 (fst (a1', a2'))) (p1 a1)) as [ eq1H | neq1H ];
-        [ contradiction eq1H | ].
-      destruct (in_dec decB1 (p1 a1) (map p1 (map fst l))) as [ inH | notinH ].
-      * apply (IH (distinct_uncons distinctH)).
-        destruct prInH as [ eqH | ]; auto.
-        contradiction nepH; apply (f_equal p1); exact (f_equal fst eqH).
-      * contradiction notinH; destruct inH1; tauto.
+  (** When is the map injective (in the sense of [inj_nat_map])? If
+      the list is distinct under projection with [pr_proj2]. Note that
+      this needs decidable equality in [B2]. This is because otherwise
+      there's no way to unpack the fact that things are distinct in
+      [B2].
+
+      The converse isn't quite true. The point is that the list could
+      contain a pair (a1, a2) twice. This doesn't stop the induced map
+      being injective (the second occurrence is ignored in the induced
+      map) but obviously [map pr_proj2 l] will not be distinct. This
+      can be fixed if you require [map pr_proj1 l] to be distinct, but
+      I don't think I need that at the moment. *)
+  Lemma zip_nat_map_inj_intro
+        (decB2 : forall x y : B2, {x = y} + {x <> y})
+        fb l fullH
+    : distinct (map pr_proj2 l) ->
+      inj_nat_map (zip_nat_map fb l fullH).
+  Proof.
+    intros distinctH a10 a11.
+    rewrite <- !(nat_map_nat (zip_nat_map fb l fullH)).
+    destruct (zip_nat_map_in fb l fullH a10 eq_refl)
+      as [ a10' [ p10H in10H ] ].
+    destruct (zip_nat_map_in fb l fullH a11 eq_refl)
+      as [ a11' [ p11H in11H ] ].
+    intro p2H; rewrite <- p10H, <- p11H.
+    exact (f_equal pr_proj1 (distinct_under_map_implies_inj
+                               pr_proj2 decB2 l _ _
+                               distinctH in10H in11H p2H)).
   Qed.
 
 End znm.
