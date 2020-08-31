@@ -23,6 +23,7 @@ Require Import Lists.List.
 
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.Distinct.
+Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.ProjSet.
 
 Set Implicit Arguments.
@@ -94,6 +95,18 @@ Section staged_proj.
     : q (p (lift_staged_proj' b l inH)) = b.
   Proof.
     eauto using proj_lift_staged_proj, lift_staged_proj_some.
+  Qed.
+
+  Lemma in_staged_proj_map_elim b l
+    : InProj q b (map p l) ->
+      exists a : A, q (p a) = b /\ In a l.
+  Proof.
+    intro inH.
+    induction l as [ | a l IH ]; [ contradiction inH | ].
+    destruct inH as [ eqH | consH ].
+    - exists a; auto with datatypes.
+    - destruct (IH consH) as [ a' [ eqH inH ] ].
+      exists a'; auto with datatypes.
   Qed.
 
 End staged_proj.
@@ -244,6 +257,7 @@ Section znm.
       map) but obviously [map pr_proj2 l] will not be distinct. This
       can be fixed if you require [map pr_proj1 l] to be distinct, but
       I don't think I need that at the moment. *)
+
   Lemma zip_nat_map_inj_intro
         (decB2 : forall x y : B2, {x = y} + {x <> y})
         fb l fullH
@@ -262,5 +276,24 @@ Section znm.
                                distinctH in10H in11H p2H)).
   Qed.
 
-End znm.
+  (** Similarly, you can show when the map is surjective. Here, you
+      just need the list of second coordinates to be full for [p2]. Of
+      course, you also need the first elements to be distinct, because
+      a pair with a repeated first coordinate won't contribute to the
+      map. *)
 
+  Lemma zip_nat_map_surj_intro fb l fullH
+    : distinct (map pr_proj1 l) ->
+      FullProj p2 (map snd l) ->
+      SurjectiveProj (zip_nat_map fb l fullH).
+  Proof.
+    intros distinctH full2H.
+    intro a2.
+    destruct (in_staged_proj_map_elim snd p2 (p2 a2) l (full2H a2))
+      as [ [ a1' a2' ] [ eq2H inH ] ].
+    exists a1'.
+    rewrite <- !(nat_map_nat (zip_nat_map fb l fullH)), <- eq2H.
+    auto using f_equal, distinct_zip_nat_map_at.
+  Qed.
+
+End znm.
