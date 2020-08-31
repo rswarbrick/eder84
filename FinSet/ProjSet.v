@@ -162,63 +162,6 @@ Section dec.
   Variable p : A -> B.
   Hypothesis decB : forall b1 b2 : B, {b1 = b2} + {b1 <> b2}.
 
-  Fixpoint check_in_proj (b : B) (l : list A) : bool :=
-    match l with
-    | nil => false
-    | cons a l' => orb (if decB b (p a) then true else false)
-                       (check_in_proj b l')
-    end.
-
-  Lemma check_in_proj_correct b l
-    : InProj p b l <-> is_true (check_in_proj b l).
-  Proof.
-    split.
-    - induction l as [ | a l IH ]; try (intro H; contradiction H).
-      simpl.
-      destruct 1 as [ paH | consH ]; apply Bool.orb_true_intro.
-      + left; rewrite paH; destruct (decB b b); auto.
-      + right. exact (IH consH).
-    - induction l as [ | a l IH ].
-      + intro H. contradiction (Bool.diff_false_true H).
-      + simpl; intro H; destruct (decB b (p a)) as [ eqH | neH ].
-        * left; auto.
-        * right. apply IH.
-          destruct (Bool.orb_prop _ _ H); auto.
-  Qed.
-
-  Definition dec_in_proj b l
-    : {InProj p b l} + {~ InProj p b l} :=
-    dec_proc_to_sumbool (fun b => check_in_proj_correct b l) b.
-
-  (** [lift_proj] tries to lift an element of B to one of the elements
-      in the list. *)
-  Fixpoint lift_proj (b : B) (l : list A) : option A :=
-    match l with
-    | nil => None
-    | cons a l' => if decB (p a) b then Some a else lift_proj b l'
-    end.
-
-  Lemma lift_proj_in b l
-    : InProj p b l ->
-      exists a, lift_proj b l = Some a /\ In a l.
-  Proof.
-    intro inH.
-    induction l as [ | a l IH ]; try (contradiction inH).
-    simpl; destruct (decB (p a) b) as [ | neH ]; eauto.
-    destruct inH as [ | consH ].
-    - contradiction neH; auto.
-    - destruct (IH consH) as [ a' [ projH inH ] ]; eauto.
-  Qed.
-
-  Lemma lift_proj_in_is_not_none b l
-    : InProj p b l -> lift_proj b l = None -> False.
-  Proof.
-    intro inH.
-    destruct (lift_proj_in b l inH) as [ a [ someH inH' ] ].
-    rewrite someH.
-    discriminate.
-  Qed.
-
   Lemma in_cons_but_not_tail (a b : B) (l : list B)
     : In b (cons a l) -> ~ In b l -> a = b.
   Proof.
@@ -238,57 +181,5 @@ Section dec.
       | right notinH => False_rec _ (neH (in_cons_but_not_tail inH0 notinH))
       end
     end.
-
-  (** Using [dec_in_inv], we can define a version of [lift_proj] for
-      when you know there's a lift. The fact that [dec_in_inv] leans
-      to the left means that this will do the same computation as
-      [lift_proj].
-
-      Note that you could define this without the list induction, by
-      using the [case_eq] tactic to analyse [lift_proj] and check that
-      it must be something. Unfortunately, the resulting term is
-      rather difficult to work with: this version seems easier. *)
-
-  Fixpoint lift_proj' (b : B) (l : list A) : InProj p b l -> A :=
-    match l as l0 return InProj p b l0 -> A with
-    | nil => fun inH => False_rect A inH
-    | cons a l' =>
-      fun inH =>
-        match dec_in_inv inH with
-        | left _ => a
-        | right IH => lift_proj' b l' IH
-        end
-    end.
-
-  (** Here, we show that [lift_proj'] really is the same thing as
-      [lift_proj], just with tighter types. *)
-
-  Lemma lift_proj_eq b l (inH : InProj p b l)
-    : lift_proj b l = Some (lift_proj' b l inH).
-  Proof.
-    induction l; try (contradiction inH).
-    simpl; unfold dec_in_inv.
-    destruct (decB (p a) b) as [ | neH ]; auto.
-    fold (map p).
-    destruct (in_dec decB b (map p l)) as [ | notinH ]; auto.
-    destruct inH as [ eqH | consH ]; contradiction.
-  Qed.
-
-  (** We also show that [lift_proj'] is indeed a lift of the
-      projection.
-
-      TODO: The proof script is identical to [lift_proj_eq]: this
-      needs some tidying up! *)
-
-  Lemma proj_lift_proj' b l (inH : InProj p b l)
-    : p (lift_proj' b l inH) = b.
-  Proof.
-    induction l; try (contradiction inH).
-    simpl; unfold dec_in_inv.
-    destruct (decB (p a) b) as [ | neH ]; auto.
-    fold (map p).
-    destruct (in_dec decB b (map p l)) as [ | notinH ]; auto.
-    destruct inH as [ eqH | consH ]; contradiction.
-  Qed.
 
 End dec.
