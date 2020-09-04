@@ -13,6 +13,8 @@ Notation vnil := VectorDef.nil.
 Notation vcons := VectorDef.cons.
 Notation vsing := (fun a => vcons _ a _ (vnil _)).
 
+Set Implicit Arguments.
+
 Definition dec_proc_to_sumbool
            {A : Type}
            {P : A -> Prop}
@@ -74,16 +76,6 @@ Section vec_all.
     intros; unfold vec_all; tauto.
   Qed.
 End vec_all.
-
-(** Mark various arguments to [vec_all] and associated lemmas as
-    implicit *)
-
-Arguments vec_all {A} P {n}.
-Arguments vec_all_nil {A} P.
-Arguments vec_all_cons {A P a n v} aH vH.
-Arguments vec_all_singleton {A P a} aH.
-Arguments not_vec_all_cons0 {A P a n v} naH.
-Arguments not_vec_all_cons1 {A P} a {n v} nvH.
 
 Hint Resolve vec_all_nil : vec.
 Hint Resolve vec_all_cons : vec.
@@ -181,7 +173,7 @@ Section vec_some.
   Qed.
 
   Definition vec_some_singleton a (aH : P a) : vec_some (vsing a) :=
-    vec_some_cons0 a (vnil _) aH.
+    vec_some_cons0 (vnil _) aH.
 
   (**
 
@@ -245,7 +237,7 @@ Section dec_vec_some.
     : vec_some P v <-> is_true (check_vec_some v).
   Proof.
     rewrite vec_some_as_vec_all.
-    rewrite (check_vec_all_correct _ _ decP_inv).
+    rewrite (check_vec_all_correct _ decP_inv).
     unfold check_vec_some.
     unfold is_true; rewrite Bool.negb_true_iff.
     rewrite Bool.not_true_iff_false.
@@ -312,7 +304,7 @@ Section dec_vecb.
     unfold check_vec_someb at 1.
     unfold check_vec_some.
     simpl.
-    destruct (decP_inv A _ _ a) as [ noH | yesH ].
+    destruct (decP_inv _ _ a) as [ noH | yesH ].
     - unfold is_true in noH.
       rewrite (Bool.not_true_is_false (f a) noH); simpl; clear noH.
       reflexivity.
