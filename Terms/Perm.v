@@ -276,7 +276,7 @@ Section inj_subst.
     destruct maybe_id.
     - exists s. constructor; intro v; rewrite (H v), (H v); auto.
     - destruct H as [ v vH ].
-      destruct (inj_endo_is_invertible nmap inj_nmap decV finite_proj
+      destruct (inj_endo_is_invertible inj_nmap decV finite_proj
                                        (exist _ v vH)) as [ t tH ].
       unfold inv_bottom, nmap, nat_map_comp_h, compose in tH; simpl in tH.
       destruct (exists_extended_inverse

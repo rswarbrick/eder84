@@ -18,6 +18,10 @@ Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.Distinct.
 Require Import Top.FinSet.InjList.
+Require Import Top.FinSet.ZipNatMap.
+Require Import Top.FinSet.ListFacts.
+
+Set Implicit Arguments.
 
 (** * Cardinality definition
 
@@ -96,10 +100,6 @@ Section rem_dups_below.
   Qed.
 End rem_dups_below.
 
-Arguments rem_dups_below {A B} p decB s l.
-Arguments distinct_map_rem_dups_below {A B} p decB s l.
-Arguments in_map_rem_dups_below {A B} p decB b s l.
-
 Lemma fp_card_exists
       {A B : Type} (p : A -> B)
       (decB : forall x y : B, {x = y} + {x <> y})
@@ -169,13 +169,10 @@ Section inj_map.
       try (rewrite map_length, map_length in maplenH; auto).
     apply (inj_on_list_length
              (map p l1) (map q l2) decD dist1H dist2H
-             (nat_map_gives_list_map l1 l2 full2H)
+             (nat_map_gives_list_map l1 full2H)
              (nm_bot_inj_on_list l1)).
   Qed.
 End inj_map.
-
-Arguments nat_map_gives_list_map {A B C D p q} f l1 {l2}.
-Arguments nm_bot_inj_on_list {A B C D p q} f injH l1.
 
 Section fp_card_unique.
   Variables A B : Type.
@@ -185,7 +182,7 @@ Section fp_card_unique.
   Local Lemma fp_card_le n m
     : fp_card p n -> fp_card p m -> n <= m.
   Proof.
-    apply (fp_card_inj_le A B A B p p (nat_map_v p));
+    apply (fp_card_inj_le (f:=nat_map_v p));
       unfold inj_nat_map; auto.
   Qed.
 
@@ -196,8 +193,6 @@ Section fp_card_unique.
   Qed.
 
 End fp_card_unique.
-
-Arguments fp_card_unique {A B} p decB.
 
 (*
 
@@ -234,11 +229,11 @@ Section inj_same_size.
     destruct cardqH as [ lq H ];
       destruct H as [ distqH H ];
       destruct H as [ fullqH lenqH ].
-    assert (surjH : surj_on_list (nm_bot f) (map p lp) (map q lq));
+    assert (surjH : surj_on_list (nm_bot f) (map p lp) (map q lq)).
       try (apply (inj_on_eql_list_is_surj
                     (map p lp) (map q lq) decD distpH distqH
                     (nat_map_gives_list_map f lp fullqH)
-                    (nm_bot_inj_on_list f injH lp));
+                    (nm_bot_inj_on_list injH lp));
            rewrite !map_length; congruence).
     intros c.
     specialize (fullqH c).
@@ -251,8 +246,6 @@ Section inj_same_size.
   Qed.
 End inj_same_size.
 
-Arguments fp_inj_same_card_is_surj {A B C D p q} f {n} cardpH cardqH injH decD.
-
 Section inj_endo.
   Variables A B : Type.
   Variable p : A -> B.
@@ -264,8 +257,8 @@ Section inj_endo.
   Lemma inj_endo_is_surj
     : SurjectiveProj f.
   Proof.
-    destruct (fp_card_exists p decB finH) as [ n cardH ].
-    apply (fp_inj_same_card_is_surj f cardH cardH injH decB).
+    destruct (fp_card_exists decB finH) as [ n cardH ].
+    apply (fp_inj_same_card_is_surj cardH cardH injH decB).
   Qed.
 
   Variable a0 : A.
@@ -304,5 +297,144 @@ Section inj_endo.
   Qed.
 End inj_endo.
 
-Arguments inj_endo_is_surj {A B p} f injH decB finH.
-Arguments inj_endo_is_invertible {A B p} f injH decB finH a0.
+Lemma proj1_combine_shorter (X Y : Type) (xs : list X) (ys : list Y)
+  : length xs <= length ys -> map fst (combine xs ys) = xs.
+Proof.
+  revert ys; induction xs as [ | x xs IHx ]; auto; intro ys.
+  destruct ys; simpl; intro lenH.
+  - apply Le.le_n_0_eq in lenH; discriminate lenH.
+  - rewrite (IHx ys (le_S_n _ _ lenH)); auto.
+Qed.
+
+(* Like combine, but repeats y as necessary to make up to the length of xs *)
+Fixpoint combine_with_tail2
+         (X Y : Type) (y' : Y) (xs : list X) (ys : list Y) {struct ys} :=
+  match ys with
+  | nil => map (fun x => (x, y')) xs
+  | cons y ys =>
+    match xs with
+    | nil => nil
+    | cons x xs => cons (x, y) (combine_with_tail2 y' xs ys)
+    end
+  end.
+
+Lemma map_fst_combine_with_tail2
+      (X Y : Type) (y' : Y) (xs : list X) (ys : list Y)
+  : map fst (combine_with_tail2 y' xs ys) = xs.
+Proof.
+  revert xs; induction ys as [ | y ys IHy ]; intro xs.
+  - simpl; rewrite map_map; induction xs; simpl; eauto using f_equal.
+  - destruct xs; simpl; eauto using f_equal.
+Qed.
+
+Lemma initial_part_combine_with_tail2
+      (X Y : Type) (y' : Y) (xs : list X) (ys : list Y)
+  : take (min (length xs) (length ys)) (combine_with_tail2 y' xs ys) =
+    take (min (length xs) (length ys)) (combine xs ys).
+Proof.
+  revert xs; induction ys as [ | y ys IHy ]; intro xs.
+  - rewrite Nat.min_0_r; auto.
+  - destruct xs; simpl; eauto using f_equal.
+Qed.
+
+Lemma take_initial_combine_with_tail2
+      (X Y : Type) (y' : Y) n (xs : list X) (ys : list Y)
+  : n <= min (length xs) (length ys) ->
+    take n (combine_with_tail2 y' xs ys) = take n (combine xs ys).
+Proof.
+  revert n xs; induction ys as [ | y ys IH ]; intros n xs.
+  - simpl; rewrite Nat.min_0_r, Nat.le_0_r.
+    intro nH; rewrite nH; auto.
+  - destruct xs; auto.
+    destruct n; auto; simpl.
+    rewrite <- Nat.succ_le_mono; intro nH.
+    apply f_equal; auto.
+Qed.
+
+Lemma in_proj_take (A B : Type) (p : A -> B) n x xs
+  : InProj p (p x) (take n xs) -> InProj p (p x) xs.
+Proof.
+  revert xs; induction n as [ | n IH ]; [ contradiction | ]; intro xs.
+  destruct xs as [ | a xs ]; auto.
+  simpl; destruct 1; unfold InProj; simpl; auto.
+  right; apply IH; auto.
+Qed.
+
+Lemma take_full_proj (A B : Type) (p : A -> B) n xs
+  : FullProj p (take n xs) -> FullProj p xs.
+Proof.
+  intros fullH x; apply (in_proj_take p n), fullH.
+Qed.
+
+Section inj_surj.
+  (** * Injections and surjections between sets with cardinality
+
+    Normal maths defines the cardinality of a set by talking about
+    equivalence classes of surjections. We've done it slightly
+    differently, restricting to finite sets and asking for a
+    surjection from a list.
+
+    This section will recover a little of the ordinary theory, showing
+    that if you have set [B1] smaller than set [B2] then there is a
+    surjection [B2 -> B1] and an injection [B1 -> B2].
+
+   *)
+  Variables A1 A2 B1 B2 : Type.
+  Variable p1 : A1 -> B1.
+  Variable p2 : A2 -> B2.
+
+  Hypothesis decB1 : forall u v : B1, {u = v} + {u <> v}.
+  Hypothesis decB2 : forall u v : B2, {u = v} + {u <> v}.
+
+  Variables n1 n2 : nat.
+  Hypothesis card1H : fp_card p1 n1.
+  Hypothesis card2H : fp_card p2 n2.
+  Hypothesis card_leH : n1 <= n2.
+
+  Lemma inj_from_smaller_card (fb : B1 -> B2)
+    : exists h : nat_map p1 p2, inj_nat_map h.
+  Proof.
+    destruct card1H as [ as1 [ dist1H [ full1H len1H ] ] ].
+    destruct card2H as [ as2 [ dist2H [ full2H len2H ] ] ].
+    clear card1H card2H.
+    set (prs := combine as1 as2).
+    assert (map fst prs = as1) as mapfstH;
+      [ unfold prs; apply proj1_combine_shorter;
+        rewrite len1H, len2H; auto | ].
+    assert (FullProj p1 (map fst prs)) as fullmap1H;
+      [ rewrite mapfstH; auto | ].
+    exists (zip_nat_map p2 decB1 fb prs fullmap1H).
+    apply zip_nat_map_inj_intro; auto.
+    unfold pr_proj2; rewrite <- map_map.
+    unfold prs; rewrite map_snd_combine, map_take.
+    auto using distinct_take.
+  Qed.
+
+  Lemma surj_from_larger_card (fb : B2 -> B1) (a1 : A1)
+    : exists h : nat_map p2 p1, SurjectiveProj h.
+  Proof.
+    destruct card1H as [ as1 [ dist1H [ full1H len1H ] ] ].
+    destruct card2H as [ as2 [ dist2H [ full2H len2H ] ] ].
+    clear card1H card2H.
+    set (prs := combine_with_tail2 a1 as2 as1).
+    assert (map fst prs = as2) as mapfstH;
+      [ unfold prs; rewrite map_fst_combine_with_tail2; auto | ].
+    assert (FullProj p2 (map fst prs)) as fullmap2H;
+      [ rewrite mapfstH; auto | ].
+    exists (zip_nat_map p1 decB2 fb prs fullmap2H).
+    apply zip_nat_map_surj_intro.
+    - unfold pr_proj1; rewrite <- map_map, mapfstH; auto.
+    - apply (take_full_proj n1).
+      assert (n1 <= min (length as2) (length as1)) as n1minH;
+        [ rewrite len1H, len2H;
+          apply (Nat.min_glb n2 n1 n1 card_leH (le_n n1)) | ].
+      unfold prs.
+      rewrite <- map_take.
+      rewrite (take_initial_combine_with_tail2 a1 as2 as1 n1minH).
+      rewrite map_take, map_snd_combine, take_take.
+      rewrite len1H, len2H, (min_r _ _ card_leH), Nat.min_id, <- len1H.
+      rewrite take_length.
+      apply full1H.
+  Qed.
+
+End inj_surj.
