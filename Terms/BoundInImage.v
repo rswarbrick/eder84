@@ -33,22 +33,6 @@ Require Import Top.Terms.VecUtils.
 
 *)
 
-(** A helper lemma for proving something decidable *)
-Lemma decision_procedure_means_decidable
-      {A : Type}
-      (P : A -> Prop)
-      (f : A -> bool)
-      (correctH : forall a, P a <-> is_true (f a))
-      (a : A)
-  : decidable (P a).
-Proof.
-  case_eq (f a).
-  - rewrite <- (correctH a); left; auto.
-  - intro falseH; right; intro trueH.
-    rewrite (correctH a) in trueH.
-    exact (Bool.eq_true_false_abs _ trueH falseH).
-Qed.
-
 Definition Subst L := (Lmodule.V L -> Term L).
 
 Section fin_subst_bound_vars.
@@ -225,16 +209,6 @@ Section fin_subst_bound_vars.
              (v : Term.V L)
     : {is_bound_in_image v} + {~ is_bound_in_image v} :=
     dec_proc_to_sumbool (check_bound_in_image_correct decV dom_elts fullH) v.
-
-  Lemma bound_in_image_decidable
-        (decV : forall v w : Term.V L, {v = w} + {v <> w})
-        (v : Term.V L)
-    : decidable (is_bound_in_image v).
-  Proof.
-    destruct sigma_finiteH as [ dom_elts fullH ].
-    exact (decision_procedure_means_decidable
-             _ _ (check_bound_in_image_correct decV dom_elts fullH) v).
-  Qed.
 
   (** We have a finite list of variables in the domain of sigma. We
       know that every variable that is bound in the image is one of
