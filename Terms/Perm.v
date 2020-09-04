@@ -9,6 +9,8 @@ Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.ProjSet.
 Require Import Top.Terms.Term.
 
+Set Implicit Arguments.
+
 (** A [var_subst] is like a substitution, but induced by a map [V ->
     V]. Composing on the left with [varTerm] gives the substitution
     itself. *)
@@ -48,12 +50,6 @@ Section var_subst.
     destruct t as [ g gH ]; destruct s as [ f fH ]; auto.
   Qed.
 End var_subst.
-
-Arguments var_subst V : assert.
-Arguments var_subst_subst {L} s v.
-Arguments fin_subst_var_subst {L} decV decF.
-Arguments compose_var_subst {L} decV t s.
-Arguments proj1_sig_compose_var_subst {L} decV t s.
 
 (** We're particularly interested in permutations, defined to be
     bijective variable substitutions. Since "bijective" is a little
@@ -102,7 +98,7 @@ Section extend_inverse.
   Qed.
 
   Local Definition cast_clamp_g (d : mod_dom id f) : mod_dom id clamp_g :=
-    let (a, H) := d in exist _ a (mod_f_imp_mod_clamp_g a H).
+    let (a, H) := d in exist _ a (mod_f_imp_mod_clamp_g H).
 
   Local Lemma fin_clamp_g : fin_mod id clamp_g.
   Proof.
@@ -135,7 +131,7 @@ Section extend_inverse.
   Proof.
     intro neH; unfold clamp_g.
     specialize (gfH (exist _ a (not_eq_sym neH))); simpl in gfH.
-    specialize (f_preserves_dom a (not_eq_sym neH)).
+    specialize (f_preserves_dom (not_eq_sym neH)).
     case (decA (f (f a)) (f a)); congruence.
   Qed.
 
@@ -168,8 +164,6 @@ Section extend_inverse.
     auto using inverses, fin_clamp_g.
   Qed.
 End extend_inverse.
-
-Arguments exists_extended_inverse {A f g} fH decA gfH fgH f_preserves_dom.
 
 (** Now we try to prove Eder's Lemma 2.5, which says that every
     injective var substitution is a permutation.
@@ -280,12 +274,10 @@ Section inj_subst.
                                        (exist _ v vH)) as [ t tH ].
       unfold inv_bottom, nmap, nat_map_comp_h, compose in tH; simpl in tH.
       destruct (exists_extended_inverse
-                  (proj2_sig s) decV (proj1 tH) (proj2 tH) f_maps_into_dom)
+                  _ (proj2_sig s) decV (proj1 tH) (proj2 tH) f_maps_into_dom)
         as [ g gH ].
       destruct gH as [ fmH invH ].
       exists (exist _ g fmH); simpl.
       exact invH.
   Qed.
 End inj_subst.
-
-Arguments inj_subst_is_perm {V s} injH decV maybe_id.
