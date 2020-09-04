@@ -2,6 +2,7 @@ Require Import Lists.List.
 Require Import Bool.Bool.
 
 Require Import Top.FinSet.Remove.
+Require Import Top.FinSet.ListFacts.
 
 (*
   Facts about lists with no repeated elements
@@ -174,3 +175,12 @@ Arguments distinct_uncons {A a l}.
 Arguments distinct_remove {A} decA a {l}.
 Arguments remove_notin {A} decA {a l}.
 Arguments length_distinct_remove_in {A} decA {a l}.
+
+Lemma distinct_take (A : Type) n (xs : list A)
+  : distinct xs -> distinct (take n xs).
+Proof.
+  revert n; induction xs as [ | x xs IH ]; intro n; [ rewrite take_nil; auto | ].
+  destruct 1 as [ notinH distH ].
+  destruct n; simpl; auto.
+  split; eauto using in_take.
+Qed.

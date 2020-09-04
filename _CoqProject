@@ -1,6 +1,7 @@
 FinSet/FPCard.v
 FinSet/InjList.v
 FinSet/Distinct.v
+FinSet/ListFacts.v
 FinSet/Remove.v
 FinSet/ListMod.v
 FinSet/FinMod.v
