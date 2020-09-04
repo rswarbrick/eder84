@@ -16,6 +16,8 @@ Require Import Top.Terms.VecUtils.
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.ListMod.
 
+Set Implicit Arguments.
+
 Definition vec := VectorDef.t.
 
 Lemma orb_elim_left a b c
@@ -100,19 +102,18 @@ Section Term.
     Variable Q : forall n, vec Term n -> Type.
 
     Variable varH : forall v, P (varTerm v).
-    Variable funH : forall f, forall ts, Q _ ts -> P (funTerm f ts).
-    Variable qnilH : Q _ (VectorDef.nil _).
-    Variable qconsH : forall t n ts,
-        P t -> Q n ts -> Q _ (VectorDef.cons _ t _ ts).
+    Variable funH : forall f, forall ts, Q ts -> P (funTerm f ts).
+    Variable qnilH : Q (VectorDef.nil _).
+    Variable qconsH : forall t n (ts : vec Term n),
+        P t -> Q ts -> Q (VectorDef.cons _ t _ ts).
 
     Fixpoint Term_rect' (t : Term) : P t :=
       match t with
       | varTerm v => varH v
       | funTerm f ts =>
-        funH f ts
+        funH f
              (VectorDef.t_rect Term Q qnilH
-                               (fun t' n ts' =>
-                                  qconsH t' n ts' (Term_rect' t'))
+                               (fun t' n ts' => qconsH (Term_rect' t'))
                                (a f) ts)
       end.
   End Term_rect'.
@@ -143,8 +144,8 @@ Section Term.
         + enough (H: varTerm v <> varTerm v');
             try (exact (right H)).
           injection; tauto.
-      - exact (right (varTerm_ne_funTerm v f ts)).
-      - exact (right (not_eq_sym (varTerm_ne_funTerm v f ts))).
+      - exact (right (@varTerm_ne_funTerm v f ts)).
+      - exact (right (not_eq_sym (@varTerm_ne_funTerm v f ts))).
       - destruct (decF f f') as [ feqH | fneH ].
         + revert ts'. rewrite <- feqH. clear feqH; intro ts'.
           destruct (dec_vec Term decTerm ts ts') as [ tseqH | tsneH ].
@@ -676,16 +677,3 @@ Section Term.
   Qed.
 
 End Term.
-
-Arguments comp_subst {L} sigma tau.
-Arguments term_height {L} t.
-Arguments term_height_subst {L s}.
-Arguments term_height_comp_subst {L s' s v}.
-
-Arguments term_fv {L} v t.
-Arguments termset_fv {L} v M.
-Arguments termsetset_fv {L} v P.
-
-Arguments var_in_M_is_free_var {L} v M.
-Arguments mod_elt_or_free_in_image_as_var {L} decV sigma v.
-Arguments comp_subst_determined_by_fvs {L} tau sigma sigma'.

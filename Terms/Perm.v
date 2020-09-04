@@ -29,10 +29,10 @@ Section var_subst.
       would hope that a [var_subst] induces one, and it does. *)
 
   Lemma fin_subst_var_subst s
-    : fin_subst L (var_subst_subst s).
+    : fin_subst (var_subst_subst s).
   Proof.
     destruct s as [ f finH ]; simpl.
-    apply (compose_fin_mod decV decV (decTerm L decV decF));
+    apply (compose_fin_mod decV decV (decTerm decV decF));
       first [ apply finH | apply fin_mod_i | contradiction ].
   Qed.
 

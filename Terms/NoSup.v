@@ -45,14 +45,15 @@ Proof.
   intros v v'; destruct v, v'; (auto || (right; discriminate)).
 Qed.
 
-Definition L := LType V F a.
+Definition L := @LType V F a.
 
 (** Constructing terms with vectors is a little cumbersome. [mkF] is a
     helper for applying the binary operation [Ff]. As you'd hope,
     [mkF] is injective in both its arguments. *)
 
 Definition mkF (t0 t1 : Term L) : Term L :=
-  funTerm L Ff (VectorDef.cons _ t0 1 (VectorDef.cons _ t1 O (VectorDef.nil _))).
+  @funTerm L Ff (VectorDef.cons _ t0 1
+                                (VectorDef.cons _ t1 O (VectorDef.nil _))).
 
 Lemma mkF_inj {s0 t0 s1 t1} : mkF s0 s1 = mkF t0 t1 -> s0 = t0 /\ s1 = t1.
 Proof.
@@ -78,12 +79,12 @@ Qed.
 *)
 
 Lemma subst_endo_mkF s t0 t1
-  : subst_endo L s (mkF t0 t1) = mkF (subst_endo L s t0) (subst_endo L s t1).
+  : subst_endo s (mkF t0 t1) = mkF (subst_endo s t0) (subst_endo s t1).
 Proof.
   exact eq_refl.
 Qed.
 
-Lemma subst_endo_mkV s v : subst_endo L s (mkV v) = s v.
+Lemma subst_endo_mkV s v : subst_endo s (mkV v) = s v.
 Proof.
   exact eq_refl.
 Qed.
@@ -293,12 +294,12 @@ Proof.
 Qed.
 
 Lemma height_cvquad_subst_endo {v : V} {t : Term L}
-  : term_height (subst_endo L (cvquad_subst v) t) = 2 + term_height t.
+  : term_height (subst_endo (cvquad_subst v) t) = 2 + term_height t.
 Proof.
   revert t; apply Term_ind'; auto using height_cvquad_subst_v.
   intros f ts IH.
   unfold cvquad_subst, subst_endo;
-    fold (subst_endo L); fold (cvquad_subst v).
+    fold subst_endo; fold (cvquad_subst v).
   unfold term_height; fold (@term_height L).
   rewrite PeanoNat.Nat.add_succ_r; apply f_equal.
   rewrite (vec_max_at_map_equal (g := fun n => 2 + n)); auto; clear IH.
@@ -373,8 +374,8 @@ Proof.
   apply PeanoNat.Nat.le_antisymm; [ | exact height_quad_term ].
   rewrite <- tqH.
   assert (term_height (comp_subst s1 s0 v') = 2) as heightH;
-    [ exact (f_equal term_height eqH) | ].
-  rewrite <- heightH; exact term_height_comp_subst.
+    [ exact (f_equal (@term_height L) eqH) | ].
+  rewrite <- heightH; apply term_height_comp_subst.
 Qed.
 
 Lemma form_if_sup {rho}

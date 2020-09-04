@@ -20,7 +20,7 @@ Section smg.
   Lemma smg_refl {sigma : Subst} : smg sigma sigma.
   Proof.
     unfold smg; exists (varTerm L); intro v.
-    apply (comp_subst_idl L).
+    apply comp_subst_idl.
   Qed.
 
   Lemma smg_trans {r s t : Subst} :
@@ -31,9 +31,9 @@ Section smg.
     destruct 1 as [ rho_st stH ].
     exists (comp_subst rho_st rho_rs).
     intro v.
-    rewrite <- (comp_subst_assoc L).
+    rewrite <- comp_subst_assoc.
     assert (eqH : forall v, rho_st v = rho_st v); auto.
-    rewrite (comp_subst_ex L v eqH rsH).
+    rewrite (comp_subst_ex v eqH rsH).
     rewrite stH.
     exact eq_refl.
   Qed.

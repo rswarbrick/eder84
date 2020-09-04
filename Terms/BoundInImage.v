@@ -38,10 +38,10 @@ Definition Subst L := (Lmodule.V L -> Term L).
 Section fin_subst_bound_vars.
   Variable L : lType.
   Variable sigma : Subst L.
-  Hypothesis sigma_finiteH : fin_subst L sigma.
+  Hypothesis sigma_finiteH : fin_subst sigma.
 
   Definition is_bound_in_image (v : Term.V L) : Prop :=
-    ~ termset_fv v (subst_im L sigma).
+    ~ termset_fv v (subst_im sigma).
 
   Definition bound_in_image : Type := sig is_bound_in_image.
 
@@ -69,7 +69,7 @@ Section fin_subst_bound_vars.
     : bool :=
     match vs with
     | nil => true
-    | cons w vs' => andb (negb (check_term_fv L decV v (sigma w)))
+    | cons w vs' => andb (negb (check_term_fv decV v (sigma w)))
                          (check_bound_in_image_lst decV v vs')
     end.
 
@@ -77,7 +77,7 @@ Section fin_subst_bound_vars.
              (decV : forall v w : Term.V L, {v = w} + {v <> w})
              (vs : list (Term.V L)) (v : Term.V L)
     : bool :=
-    andb (if dec_mod_elt_varTerm L decV sigma v then true else false)
+    andb (if dec_mod_elt_varTerm decV sigma v then true else false)
          (check_bound_in_image_lst decV v vs).
 
   (**
@@ -93,7 +93,7 @@ Section fin_subst_bound_vars.
   Lemma free_in_image_iff_dom_elt_hits_it
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         v
-    : termset_fv v (subst_im L sigma) <->
+    : termset_fv v (subst_im sigma) <->
       (sigma v = varTerm L v \/
        (exists w, mod_elt (varTerm L) sigma w /\
                   term_fv v (sigma w))).
@@ -102,9 +102,9 @@ Section fin_subst_bound_vars.
     - destruct 1 as [ t [ imH fvH ] ].
       destruct imH as [ w twH ].
       rewrite twH in fvH; clear twH t.
-      destruct (dec_mod_elt_varTerm L decV sigma v) as [ eltH | ].
+      destruct (dec_mod_elt_varTerm decV sigma v) as [ eltH | ].
       + right; exists w; split; auto.
-        destruct (dec_mod_elt_varTerm L decV sigma w) as [ | eqwH ]; auto.
+        destruct (dec_mod_elt_varTerm decV sigma w) as [ | eqwH ]; auto.
         rewrite eqwH in fvH.
         simpl in fvH; rewrite <- fvH; auto.
       + left; auto.
@@ -133,7 +133,7 @@ Section fin_subst_bound_vars.
     - rewrite <- uwH in freeH.
       apply Bool.andb_false_intro1.
       rewrite Bool.negb_false_iff.
-      rewrite <- (check_term_fv_correct L decV v (sigma u)).
+      rewrite <- (check_term_fv_correct decV v (sigma u)).
       auto.
     - specialize (IH inH); clear inH.
       simpl; apply Bool.andb_false_intro2; auto.
@@ -151,7 +151,7 @@ Section fin_subst_bound_vars.
     - intro bd_falseH; simpl in bd_falseH.
       case (Bool.andb_false_elim _ _ bd_falseH); clear bd_falseH.
       + rewrite Bool.negb_false_iff.
-        rewrite <- (check_term_fv_correct L decV v (sigma u)).
+        rewrite <- (check_term_fv_correct decV v (sigma u)).
         eauto with datatypes.
       + intro H; destruct (IH H) as [ w [ inH fvH ] ].
         eauto with datatypes.
@@ -178,7 +178,7 @@ Section fin_subst_bound_vars.
     rewrite (free_in_image_iff_dom_elt_hits_it decV v).
     split.
     - destruct 1 as [ fixedH | exH ]; unfold check_bound_in_image.
-      + case (dec_mod_elt_varTerm L decV sigma v); [ contradiction | auto ].
+      + case (dec_mod_elt_varTerm decV sigma v); [ contradiction | auto ].
       + apply Bool.andb_false_intro2.
         destruct exH as [ w [ eltwH fvH ] ].
         assert (In w (map md_elt dom_elts)) as inH;
@@ -186,7 +186,7 @@ Section fin_subst_bound_vars.
         apply (check_bound_in_image_lst_false_intro decV v w fvH _ inH).
     - intro check_falseH.
       case (Bool.andb_false_elim _ _ check_falseH); simpl; clear check_falseH.
-      + destruct (dec_mod_elt_varTerm L decV sigma v); auto.
+      + destruct (dec_mod_elt_varTerm decV sigma v); auto.
         intro tfH; contradiction Bool.diff_true_false.
       + intro check_lstH.
         destruct (check_bound_in_image_lst_false_elim _ _ _ check_lstH)
