@@ -79,7 +79,7 @@ Section Term.
         fH f ts
            (VectorDef.t_rect Term (fun _ v => vec_all P v)
                              (vec_all_nil P)
-                             (fun t n v => vec_all_cons (Term_ind' t))
+                             (fun t n v => vec_all_cons _ _ (Term_ind' t))
                              (a f) ts)
       end.
   End Term_ind'.
@@ -148,7 +148,7 @@ Section Term.
       - exact (right (not_eq_sym (@varTerm_ne_funTerm v f ts))).
       - destruct (decF f f') as [ feqH | fneH ].
         + revert ts'. rewrite <- feqH. clear feqH; intro ts'.
-          destruct (dec_vec Term decTerm ts ts') as [ tseqH | tsneH ].
+          destruct (dec_vec decTerm ts ts') as [ tseqH | tsneH ].
           * apply left. apply f_equal. exact tseqH.
           * apply right. intro funH. inversion funH.
             exact (tsneH (inj_pair2_eq_dec
@@ -512,7 +512,7 @@ Section Term.
    *)
   Lemma check_term_fv_funTerm decV v f ts
     : check_term_fv decV v (funTerm f ts) =
-      check_vec_someb _ (check_term_fv decV v) ts.
+      check_vec_someb (check_term_fv decV v) ts.
   Proof.
     simpl.
     revert ts; generalize (a f).
@@ -674,6 +674,57 @@ Section Term.
         generalize ts; clear ts; generalize (a f); clear f.
         intros n ts.
         induction ts; simpl; auto.
+  Qed.
+
+  Lemma funTerm_inj
+        (decF : forall x y : F, {x = y} + {x <> y}) f v v'
+    : funTerm f v = funTerm f v' -> v = v'.
+  Proof.
+    injection 1 as H.
+    exact (inj_pair2_eq_dec F decF (fun f => vec Term (a f)) f v v' H).
+  Qed.
+
+  Lemma subst_endo_determines_fvs
+        (decF : forall x y : F, {x = y} + {x <> y})
+        (sigma sigma' : V -> Term) v t
+    : term_fv v t ->
+      subst_endo sigma t = subst_endo sigma' t ->
+      sigma v = sigma' v.
+  Proof.
+    revert t.
+    apply (Term_ind' (fun t => _ -> _ -> sigma v = sigma' v)).
+    - intro v''; simpl; intro v''H; rewrite <- v''H; auto.
+    - simpl.
+      intros f ts allH someH eqH.
+      assert (VectorDef.map (subst_endo sigma) ts =
+              VectorDef.map (subst_endo sigma') ts) as eqH';
+        [ apply (funTerm_inj decF eqH) | ]; clear eqH.
+      assert (VectorDef.to_list (VectorDef.map (subst_endo sigma) ts) =
+              VectorDef.to_list (VectorDef.map (subst_endo sigma') ts)) as eqH;
+        [ apply f_equal; auto | ]; clear eqH'.
+      rewrite !vec_map_to_list in eqH.
+      destruct (vec_some_to_list _ _ someH) as [ t [ inH fvH ] ]; clear someH.
+      apply (vec_all_to_list _ _ allH t inH fvH); clear allH.
+      revert eqH inH;
+        generalize (VectorDef.to_list ts); clear f ts; intro lst.
+      induction lst as [ | t' lst IH ]; [ intros eqH inH; contradiction inH | ].
+      simpl; intros eqH [ ttH | inH ].
+      + rewrite ttH in eqH; apply (f_equal (hd t) eqH).
+      + exact (IH (f_equal (@tl Term) eqH) inH).
+  Qed.
+
+  Lemma comp_subst_determines_fvs
+        (decF : forall x y : F, {x = y} + {x <> y})
+        (tau sigma sigma' : V -> Term)
+    : (forall v, comp_subst sigma tau v = comp_subst sigma' tau v) ->
+      (forall v, termset_fv v (subst_im tau) -> sigma v = sigma' v).
+  Proof.
+    intros eqH v fvH.
+    destruct fvH as [ t [ imH fvH ] ].
+    destruct imH as [ v' tH ].
+    specialize (eqH v'); revert eqH.
+    unfold comp_subst, compose; simpl; rewrite <- tH; clear v' tH.
+    eauto using subst_endo_determines_fvs.
   Qed.
 
 End Term.

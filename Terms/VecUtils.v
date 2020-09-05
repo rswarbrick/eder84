@@ -131,6 +131,21 @@ Proof.
   simpl; intros [ pqH allpqH ] [ paH allpH ]; split; auto.
 Qed.
 
+(** Unpacking [vec_all] when converting to a list *)
+
+Lemma vec_all_to_list (A : Type) (P : A -> Prop) n (v : vec A n)
+  : vec_all P v ->
+    forall a,
+      In a (VectorDef.to_list v) -> P a.
+Proof.
+  induction v as [ | a0 n v IH ]; [ simpl; tauto | ].
+  destruct 1 as [ H0 allH ].
+  intro a.
+  specialize (IH allH a); clear allH.
+  unfold VectorDef.to_list; fold (VectorDef.to_list v).
+  destruct 1 as [ eqH | ]; [ rewrite <- eqH | ]; auto.
+Qed.
+
 (** * [vec_some]
 
   This is the existential version of [vec_all]. If everything is
@@ -254,6 +269,20 @@ Arguments vec_some_as_vec_all {A P} decP {n} v.
 Arguments check_vec_some {A P} decP {n} v.
 Arguments dec_vec_some {A P} decP {n} v.
 
+(** Unpacking [vec_some] when converting to a list *)
+
+Lemma vec_some_to_list (A : Type) (P : A -> Prop) n (v : vec A n)
+  : vec_some P v ->
+    exists a,
+      In a (VectorDef.to_list v) /\ P a.
+Proof.
+  induction v as [ | a0 n v IH ]; [ contradiction | ].
+  destruct 1 as [ pa0H | someH ].
+  - exists a0; split; simpl; auto.
+  - destruct (IH someH) as [ a [ inH paH ] ].
+    exists a; split; simpl; auto.
+Qed.
+
 (** Specialized forms of [vec_all] and [vec_some] for boolean functions *)
 
 Section dec_vecb.
@@ -316,6 +345,7 @@ Section dec_vecb.
 
 End dec_vecb.
 
+
 Lemma vec_cons_eq_intro {A a a'} {n} {v v' : vec A n}
   : a = a' -> v = v' -> vcons A a n v = vcons A a' n v'.
 Proof.
@@ -370,6 +400,17 @@ Lemma vec_map_map {A B C : Type} (f : A -> B) (g : B -> C) {n} (v : vec A n)
   : VectorDef.map g (VectorDef.map f v) = VectorDef.map (compose g f) v.
 Proof.
   induction v; simpl; auto using f_equal.
+Qed.
+
+(** Show that [VectorDef.map] is the same as [map] once we've
+    converted to a list *)
+
+Lemma vec_map_to_list (A B : Type) (f : A -> B) n (v : vec A n)
+  : VectorDef.to_list (VectorDef.map f v) = map f (VectorDef.to_list v).
+Proof.
+  induction v as [ | a n v IH ]; auto.
+  simpl; unfold VectorDef.to_list at 1.
+  auto using f_equal.
 Qed.
 
 (** * Calculating a maximum over a vector
