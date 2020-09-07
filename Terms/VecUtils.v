@@ -413,6 +413,22 @@ Proof.
   auto using f_equal.
 Qed.
 
+Lemma vec_to_list_inj (A : Type) n (v v' : vec A n)
+  : VectorDef.to_list v = VectorDef.to_list v' ->
+    v = v'.
+Proof.
+  revert n v v'.
+  apply (VectorDef.rect2
+           (fun n u u' => VectorDef.to_list u = VectorDef.to_list u' -> u = u')); auto.
+  intros n v v' IH a a'.
+  unfold VectorDef.to_list.
+  fold (VectorDef.to_list v); fold (VectorDef.to_list v').
+  intro eqH.
+  apply vec_cons_eq_intro.
+  - exact (f_equal (hd a) eqH).
+  - exact (IH (f_equal (tl (A := A)) eqH)).
+Qed.
+
 (** * Calculating a maximum over a vector
 
     Note that [vec_max_at h] is basically the same thing as mapping

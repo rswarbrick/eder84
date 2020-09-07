@@ -676,16 +676,21 @@ Section Term.
         induction ts; simpl; auto.
   Qed.
 
-  Lemma funTerm_inj
-        (decF : forall x y : F, {x = y} + {x <> y}) f v v'
+  Definition term_children (t : Term) : list Term :=
+    match t with
+    | varTerm v => nil
+    | funTerm f ts => VectorDef.to_list ts
+    end.
+
+  Lemma funTerm_inj f v v'
     : funTerm f v = funTerm f v' -> v = v'.
   Proof.
-    injection 1 as H.
-    exact (inj_pair2_eq_dec F decF (fun f => vec Term (a f)) f v v' H).
+    intro eqH.
+    apply vec_to_list_inj.
+    exact (f_equal term_children eqH).
   Qed.
 
   Lemma subst_endo_determines_fvs
-        (decF : forall x y : F, {x = y} + {x <> y})
         (sigma sigma' : V -> Term) v t
     : term_fv v t ->
       subst_endo sigma t = subst_endo sigma' t ->
@@ -698,7 +703,7 @@ Section Term.
       intros f ts allH someH eqH.
       assert (VectorDef.map (subst_endo sigma) ts =
               VectorDef.map (subst_endo sigma') ts) as eqH';
-        [ apply (funTerm_inj decF eqH) | ]; clear eqH.
+        [ apply (funTerm_inj eqH) | ]; clear eqH.
       assert (VectorDef.to_list (VectorDef.map (subst_endo sigma) ts) =
               VectorDef.to_list (VectorDef.map (subst_endo sigma') ts)) as eqH;
         [ apply f_equal; auto | ]; clear eqH'.
@@ -714,7 +719,6 @@ Section Term.
   Qed.
 
   Lemma comp_subst_determines_fvs
-        (decF : forall x y : F, {x = y} + {x <> y})
         (tau sigma sigma' : V -> Term)
     : (forall v, comp_subst sigma tau v = comp_subst sigma' tau v) ->
       (forall v, termset_fv v (subst_im tau) -> sigma v = sigma' v).
