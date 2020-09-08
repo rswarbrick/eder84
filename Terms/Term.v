@@ -731,4 +731,40 @@ Section Term.
     eauto using subst_endo_determines_fvs.
   Qed.
 
+  (** A fact about free variables in substitutions. *)
+  Lemma term_fv_in_subst_endo sigma v w t
+    : term_fv v t ->
+      term_fv w (sigma v) ->
+      term_fv w (subst_endo sigma t).
+  Proof.
+    revert t.
+    apply (Term_ind' (fun t => term_fv v t ->
+                               term_fv w (sigma v) ->
+                               term_fv w (subst_endo sigma t))); simpl.
+    - intros v0 eqH; rewrite eqH; auto.
+    - intros f ts IH someH fvH.
+      destruct (vec_some_to_list _ _ someH) as [ t [ inH fvH' ] ]; clear someH.
+      apply vec_some_map_intro.
+      apply (vec_some_to_list_intro _ ts t inH).
+      apply (vec_all_to_list _ _ IH t inH fvH' fvH).
+  Qed.
+
+  (** What does it mean for v to be to be free in the image of a
+      substitution? One take is that there is some term, t, in the
+      image of the substitution where v is a free variable of t
+      (that's the definition). But, equivalently, there could exist
+      some variable, w, such that v is free in sigma w. *)
+  Lemma termset_fv_subst_im v sigma
+    : termset_fv v (subst_im sigma) <->
+      exists w, term_fv v (sigma w).
+  Proof.
+    split.
+    - destruct 1 as [ t [ substH fvH ] ].
+      destruct substH as [ w tH ].
+      exists w; rewrite <- tH; auto.
+    - destruct 1 as [ w fvH ].
+      exists (sigma w); split; auto.
+      exists w; auto.
+  Qed.
+
 End Term.

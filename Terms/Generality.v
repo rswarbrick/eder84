@@ -6,6 +6,7 @@ Require Import Top.Terms.VecUtils.
 Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.FinMod.
 
+
 (* First, we have to define the "more general than" relation on
    substitutions, abbreviated to smg.
  *)
@@ -61,15 +62,86 @@ End smg.
     that if two substitutions are equivalent under the [smg] relation then
     there are permutations that relabel them into each other.
 
-    The first big statement is that if you have a finite substitution, sigma,
-    then there are only finitely many variables that are not free variables in
-    the image of sigma. Why? Well, sigma leaves all but finitely many variables
-    untouched and these untouched variables will still be free in the image of
-    sigma.
-
-    We start by setting up a sigma type for the bound variables. We want to
-    show that [proj1_sig] on that sigma type is a finite projection.
-
-    TODO: Currently working on this in the BoundInImage module.
-
 *)
+Section sequiv_means_perm.
+  Variable L : lType.
+  Variables sigma sigma' : Subst L.
+  Variables rho rho' : Subst L.
+  Hypothesis sigma'H : forall v, sigma' v = comp_subst rho sigma v.
+  Hypothesis sigmaH : forall v, sigma v = comp_subst rho' sigma' v.
+
+  Lemma sigma_is_rho2_sigma v
+    : sigma v = comp_subst (comp_subst rho' rho) sigma v.
+  Proof.
+    rewrite <- comp_subst_assoc.
+    unfold comp_subst at 1, compose; simpl.
+    rewrite <- sigma'H, sigmaH; auto.
+  Qed.
+
+  Lemma rho2_fixes_im_sigma v
+    : termset_fv v (subst_im sigma) ->
+      comp_subst rho' rho v = varTerm L v.
+  Proof.
+    apply (@comp_subst_determines_fvs
+             L sigma (comp_subst rho' rho) (varTerm L)); clear v.
+    intro v; rewrite <- sigma_is_rho2_sigma, comp_subst_idl; auto.
+  Qed.
+
+  Lemma rho_im_sigma_has_height_0 v
+    : termset_fv v (subst_im sigma) -> term_height (rho v) = 0.
+  Proof.
+    intro fvH.
+    apply PeanoNat.Nat.le_0_r.
+    apply (PeanoNat.Nat.le_trans _ _ _ (@term_height_comp_subst L rho' rho v)).
+    rewrite (rho2_fixes_im_sigma v fvH); auto.
+  Qed.
+
+  Definition unpack_height_0_term (t : Term L)
+    : term_height t = 0 -> Term.V L :=
+    match t with
+    | varTerm _ v => fun _ => v
+    | funTerm f ts =>
+      fun htH =>
+        False_rect (Term.V L)
+                   (PeanoNat.Nat.neq_succ_0
+                      (vec_max_at (term_height (L:=L)) ts) htH)
+    end.
+
+  Lemma varTerm_unpack_height_0_term t H
+    : varTerm L (unpack_height_0_term t H) = t.
+  Proof.
+    destruct t; auto.
+    contradiction (PeanoNat.Nat.neq_succ_0 _ H).
+  Qed.
+
+  Definition rho_v_var_on_im_sigma
+             (v : Term.V L) (fvH : termset_fv v (subst_im sigma)) : Term.V L :=
+    unpack_height_0_term (rho v) (rho_im_sigma_has_height_0 v fvH).
+
+  Lemma rvvois_correct
+        v (fvH : termset_fv v (subst_im sigma))
+    : varTerm L (rho_v_var_on_im_sigma v fvH) = rho v.
+  Proof.
+    apply varTerm_unpack_height_0_term.
+  Qed.
+
+  Lemma rvvois_is_fv_for_sigma'
+        v (fvH : termset_fv v (subst_im sigma))
+    : termset_fv (rho_v_var_on_im_sigma v fvH) (subst_im sigma').
+  Proof.
+    destruct fvH as [ t [ imH fvH' ] ].
+    generalize (ex_intro (fun t0 => _ /\ term_fv v t0) _
+                         (conj imH fvH')); intro fvH.
+    destruct imH as [ w tH ].
+    rewrite tH in fvH'; clear t tH.
+    rewrite termset_fv_subst_im; exists w.
+    rewrite sigma'H.
+    apply (term_fv_in_subst_endo rho v
+                                 (rho_v_var_on_im_sigma v fvH)
+                                 (sigma w)
+                                 fvH').
+    rewrite <- (rvvois_correct v fvH).
+    simpl; auto.
+  Qed.
+
+End sequiv_means_perm.

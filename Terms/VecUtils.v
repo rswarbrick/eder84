@@ -283,6 +283,28 @@ Proof.
     exists a; split; simpl; auto.
 Qed.
 
+Lemma vec_some_to_list_intro (A : Type) (P : A -> Prop) n (v : vec A n) a
+  : In a (VectorDef.to_list v) ->
+    P a ->
+    vec_some P v.
+Proof.
+  induction v as [ | a0 n v IH ]; [ contradiction | ].
+  destruct 1 as [ eqH | HH ].
+  - rewrite eqH; apply vec_some_cons0.
+  - intros; apply vec_some_cons1, IH; auto.
+Qed.
+
+Lemma vec_some_map_intro
+      (A B : Type) (P : B -> Prop) (f : A -> B) n (v : vec A n)
+  : vec_some (fun a => P (f a)) v ->
+    vec_some P (VectorDef.map f v).
+Proof.
+  induction v as [ | a0 n v IH ]; [ contradiction | ].
+  destruct 1 as [ pH | consH ].
+  - apply vec_some_cons0; auto.
+  - apply vec_some_cons1, IH, consH.
+Qed.
+
 (** Specialized forms of [vec_all] and [vec_some] for boolean functions *)
 
 Section dec_vecb.
