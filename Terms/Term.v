@@ -9,7 +9,6 @@ Require Import Logic.Eqdep_dec.
 Require Import PeanoNat.
 Require Vectors.Fin.
 Require Vectors.VectorDef.
-Require Import Program.Basics.
 Require Import Bool.
 
 Require Import Top.Terms.VecUtils.
@@ -221,8 +220,8 @@ Section Term.
       endomorphisms and then restrict back to variables by composing
       with [varTerm]. *)
 
-  Definition comp_subst (sigma tau : V -> Term) :=
-    compose (compose (subst_endo sigma) (subst_endo tau)) varTerm.
+  Definition comp_subst (sigma tau : V -> Term) : V -> Term :=
+    fun v => subst_endo sigma (tau v).
 
   (** Fortunately, given the name, [comp_subst] is indeed the right
       notion of composition of substitutions. In fact, if you compose
@@ -231,12 +230,12 @@ Section Term.
       substitutions and then induce the endomorphism. *)
 
   Lemma compose_subst_endo (sigma tau : V -> Term) (t : Term)
-    : compose (subst_endo sigma) (subst_endo tau) t =
+    : subst_endo sigma (subst_endo tau t) =
       subst_endo (comp_subst sigma tau) t.
   Proof.
     revert t; apply Term_ind'; try tauto.
     intros f ts IH.
-    unfold compose, subst_endo; fold subst_endo; apply f_equal.
+    unfold subst_endo; fold subst_endo; apply f_equal.
     rewrite vec_map_map.
     auto using vec_map_ext.
   Qed.
@@ -246,16 +245,12 @@ Section Term.
 
   Lemma comp_subst_idl {sigma v} : comp_subst varTerm sigma v = sigma v.
   Proof.
-    unfold comp_subst, compose.
-    unfold subst_endo at 2.
-    rewrite subst_endo_varTerm.
-    exact eq_refl.
+    unfold comp_subst; auto using subst_endo_varTerm.
   Qed.
 
   Lemma comp_subst_idr {sigma v} : comp_subst sigma varTerm v = sigma v.
   Proof.
-    unfold comp_subst, compose, subst_endo.
-    exact eq_refl.
+    unfold comp_subst; auto using subst_endo_varTerm.
   Qed.
 
   (** Also, unsurprisingly, [comp_subst] is associative. *)
@@ -263,7 +258,7 @@ Section Term.
   Lemma comp_subst_assoc {s1 s2 s3 v}
     : comp_subst s1 (comp_subst s2 s3) v = comp_subst (comp_subst s1 s2) s3 v.
   Proof.
-    unfold comp_subst, compose; simpl.
+    unfold comp_subst; simpl.
     generalize (s3 v); clear s3 v.
     apply Term_ind'; try reflexivity.
     intros f ts IH.
@@ -286,10 +281,7 @@ Section Term.
       comp_subst r s v = comp_subst r' s' v.
   Proof.
     intros rH sH.
-    unfold comp_subst, compose.
-    rewrite (subst_endo_ex sH).
-    rewrite (subst_endo_ex rH).
-    exact eq_refl.
+    unfold comp_subst; rewrite sH, (subst_endo_ex rH); auto.
   Qed.
 
   (** Define the image of a substitution: the terms that you get when
@@ -349,7 +341,7 @@ Section Term.
       : list_map decV varTerm stl v = comp_subst sigma tau v.
     Proof.
       specialize (tH v).
-      unfold comp_subst, compose, subst_endo at 2, stl.
+      unfold comp_subst, subst_endo, stl.
       set (pmap := (fun p : V * Term => (fst p, subst_endo sigma (snd p)))).
       revert tau tH.
       induction tl as [ | p tl' IH ].
@@ -654,9 +646,7 @@ Section Term.
       forall v, comp_subst sigma tau v = comp_subst sigma' tau v.
   Proof.
     intros eqH v.
-    unfold comp_subst, compose.
-    unfold subst_endo at 2 4.
-
+    unfold comp_subst.
     assert (forall w, term_fv w (tau v) -> sigma w = sigma' w) as H.
     - intros w fvH.
       apply eqH.
@@ -727,7 +717,7 @@ Section Term.
     destruct fvH as [ t [ imH fvH ] ].
     destruct imH as [ v' tH ].
     specialize (eqH v'); revert eqH.
-    unfold comp_subst, compose; simpl; rewrite <- tH; clear v' tH.
+    unfold comp_subst; simpl; rewrite <- tH; clear v' tH.
     eauto using subst_endo_determines_fvs.
   Qed.
 
