@@ -1,12 +1,7 @@
-Require Import Lists.List.
-Require Import Program.Basics.
-
 Require Import Top.Terms.Term.
+Require Import Top.Terms.Subst.
 Require Import Top.Terms.FreeVars.
 Require Import Top.Terms.VecUtils.
-Require Import Top.FinSet.FinSet.
-Require Import Top.FinSet.FinMod.
-
 
 (* First, we have to define the "more general than" relation on
    substitutions, abbreviated to smg.
@@ -17,7 +12,7 @@ Section smg.
   Definition Subst := (Lmodule.V L -> Term L).
 
   Definition smg (sigma tau : Subst) : Prop :=
-    exists rho, forall v, comp_subst rho sigma v = tau v.
+    exists rho, forall v, comp_subst L rho sigma v = tau v.
 
   Lemma smg_refl {sigma : Subst} : smg sigma sigma.
   Proof.
@@ -31,11 +26,11 @@ Section smg.
     unfold smg.
     destruct 1 as [ rho_rs rsH ].
     destruct 1 as [ rho_st stH ].
-    exists (comp_subst rho_st rho_rs).
+    exists (comp_subst L rho_st rho_rs).
     intro v.
     rewrite <- comp_subst_assoc.
     assert (eqH : forall v, rho_st v = rho_st v); auto.
-    rewrite (comp_subst_ex v eqH rsH).
+    rewrite (comp_subst_ex L v eqH rsH).
     rewrite stH.
     exact eq_refl.
   Qed.
@@ -68,28 +63,28 @@ Section sequiv_means_perm.
   Variable L : lType.
   Variables sigma sigma' : Subst L.
   Variables rho rho' : Subst L.
-  Hypothesis sigma'H : forall v, sigma' v = comp_subst rho sigma v.
-  Hypothesis sigmaH : forall v, sigma v = comp_subst rho' sigma' v.
+  Hypothesis sigma'H : forall v, sigma' v = comp_subst L rho sigma v.
+  Hypothesis sigmaH : forall v, sigma v = comp_subst L rho' sigma' v.
 
   Lemma sigma_is_rho2_sigma v
-    : sigma v = comp_subst (comp_subst rho' rho) sigma v.
+    : sigma v = comp_subst L (comp_subst L rho' rho) sigma v.
   Proof.
     rewrite <- comp_subst_assoc.
-    unfold comp_subst at 1, compose; simpl.
+    unfold comp_subst at 1; simpl.
     rewrite <- sigma'H, sigmaH; auto.
   Qed.
 
   Lemma rho2_fixes_im_sigma v
-    : termset_fv v (subst_im sigma) ->
-      comp_subst rho' rho v = varTerm L v.
+    : termset_fv v (subst_im L sigma) ->
+      comp_subst L rho' rho v = varTerm L v.
   Proof.
     apply (@comp_subst_determines_fvs
-             L sigma (comp_subst rho' rho) (varTerm L)); clear v.
+             L sigma (comp_subst L rho' rho) (varTerm L)); clear v.
     intro v; rewrite <- sigma_is_rho2_sigma, comp_subst_idl; auto.
   Qed.
 
   Lemma rho_im_sigma_has_height_0 v
-    : termset_fv v (subst_im sigma) -> term_height (rho v) = 0.
+    : termset_fv v (subst_im L sigma) -> term_height (rho v) = 0.
   Proof.
     intro fvH.
     apply PeanoNat.Nat.le_0_r.
@@ -116,19 +111,20 @@ Section sequiv_means_perm.
   Qed.
 
   Definition rho_v_var_on_im_sigma
-             (v : Term.V L) (fvH : termset_fv v (subst_im sigma)) : Term.V L :=
+             (v : Term.V L) (fvH : termset_fv v (subst_im L sigma))
+    : Term.V L :=
     unpack_height_0_term (rho v) (rho_im_sigma_has_height_0 v fvH).
 
   Lemma rvvois_correct
-        v (fvH : termset_fv v (subst_im sigma))
+        v (fvH : termset_fv v (subst_im L sigma))
     : varTerm L (rho_v_var_on_im_sigma v fvH) = rho v.
   Proof.
     apply varTerm_unpack_height_0_term.
   Qed.
 
   Lemma rvvois_is_fv_for_sigma'
-        v (fvH : termset_fv v (subst_im sigma))
-    : termset_fv (rho_v_var_on_im_sigma v fvH) (subst_im sigma').
+        v (fvH : termset_fv v (subst_im L sigma))
+    : termset_fv (rho_v_var_on_im_sigma v fvH) (subst_im L sigma').
   Proof.
     destruct fvH as [ t [ imH fvH' ] ].
     generalize (ex_intro (fun t0 => _ /\ term_fv v t0) _

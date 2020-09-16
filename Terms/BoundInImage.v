@@ -6,6 +6,7 @@ Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.ProjSet.
 
 Require Import Top.Terms.Term.
+Require Import Top.Terms.Subst.
 Require Import Top.Terms.FreeVars.
 
 (* for dec_proc_to_sumbool: probably refactor this! *)
@@ -35,15 +36,13 @@ Require Import Top.Terms.VecUtils.
 
 *)
 
-Definition Subst L := (Lmodule.V L -> Term L).
-
 Section fin_subst_bound_vars.
   Variable L : lType.
   Variable sigma : Subst L.
-  Hypothesis sigma_finiteH : fin_subst sigma.
+  Hypothesis sigma_finiteH : fin_subst L sigma.
 
   Definition is_bound_in_image (v : Term.V L) : Prop :=
-    ~ termset_fv v (subst_im sigma).
+    ~ termset_fv v (subst_im L sigma).
 
   Definition bound_in_image : Type := sig is_bound_in_image.
 
@@ -95,7 +94,7 @@ Section fin_subst_bound_vars.
   Lemma free_in_image_iff_dom_elt_hits_it
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         v
-    : termset_fv v (subst_im sigma) <->
+    : termset_fv v (subst_im L sigma) <->
       (sigma v = varTerm L v \/
        (exists w, mod_elt (varTerm L) sigma w /\
                   term_fv v (sigma w))).

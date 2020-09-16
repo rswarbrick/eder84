@@ -1,4 +1,5 @@
 Require Import Top.Terms.Term.
+Require Import Top.Terms.Subst.
 Require Import Top.Terms.Generality.
 Require Import Top.Terms.Perm.
 Require Import Top.Terms.VecUtils.
@@ -79,12 +80,12 @@ Qed.
 *)
 
 Lemma subst_endo_mkF s t0 t1
-  : subst_endo s (mkF t0 t1) = mkF (subst_endo s t0) (subst_endo s t1).
+  : subst_endo L s (mkF t0 t1) = mkF (subst_endo L s t0) (subst_endo L s t1).
 Proof.
   exact eq_refl.
 Qed.
 
-Lemma subst_endo_mkV s v : subst_endo s (mkV v) = s v.
+Lemma subst_endo_mkV s v : subst_endo L s (mkV v) = s v.
 Proof.
   exact eq_refl.
 Qed.
@@ -142,7 +143,7 @@ Qed.
 Section sigma_decomp.
   Variable v : V.
   Variable sigma' rho : Subst L.
-  Hypothesis decompH : comp_subst sigma' sigma v = rho v.
+  Hypothesis decompH : comp_subst L sigma' sigma v = rho v.
 
   Local Definition s12 := sigma' Vx.
   Local Definition s3 := sigma' Vy.
@@ -160,7 +161,7 @@ End sigma_decomp.
 Section tau_decomp.
   Variable v : V.
   Variable tau' rho : Subst L.
-  Hypothesis decompH : comp_subst tau' tau v = rho v.
+  Hypothesis decompH : comp_subst L tau' tau v = rho v.
 
   Local Definition s1 := tau' Vx.
   Local Definition s2 := tau' Vy.
@@ -199,8 +200,8 @@ Definition quad_term {A : Type} {f : A -> Term L} (q : Quad f) : Term L :=
     actually write down its form explicitly. *)
 
 Lemma subst_is_quad_term {v sigma' tau' rho}
-  : comp_subst sigma' sigma v = rho v ->
-    comp_subst tau' tau v = rho v ->
+  : comp_subst L sigma' sigma v = rho v ->
+    comp_subst L tau' tau v = rho v ->
     rho v = mkF (mkF (s1 tau') (s2 tau')) (mkF (s3 sigma') (s4 sigma')).
 Proof.
   intros sigmaH tauH.
@@ -294,7 +295,7 @@ Proof.
 Qed.
 
 Lemma height_cvquad_subst_endo {v : V} {t : Term L}
-  : term_height (subst_endo (cvquad_subst v) t) = 2 + term_height t.
+  : term_height (subst_endo L (cvquad_subst v) t) = 2 + term_height t.
 Proof.
   revert t; apply Term_ind'; auto using height_cvquad_subst_v.
   intros f ts IH.
@@ -366,14 +367,14 @@ Qed.
 
 Lemma comp_subst_quad_to_var {s0 s1 : Subst L} {v v' : V} {tq : Quad id}
   : s0 v' = quad_term tq ->
-    comp_subst s1 s0 v' = cvquad_subst v v' ->
+    comp_subst L s1 s0 v' = cvquad_subst v v' ->
     exists vq : Quad mkV, s0 v' = quad_term vq.
 Proof.
   intros tqH eqH.
   rewrite tqH; apply height_2_quad_term.
   apply PeanoNat.Nat.le_antisymm; [ | exact height_quad_term ].
   rewrite <- tqH.
-  assert (term_height (comp_subst s1 s0 v') = 2) as heightH;
+  assert (term_height (comp_subst L s1 s0 v') = 2) as heightH;
     [ exact (f_equal (@term_height L) eqH) | ].
   rewrite <- heightH; apply term_height_comp_subst.
 Qed.

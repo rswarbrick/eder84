@@ -4,6 +4,7 @@ Require Import Bool.
 Require Import Top.FinSet.FinMod.
 
 Require Import Top.Terms.Term.
+Require Import Top.Terms.Subst.
 Require Import Top.Terms.VecUtils.
 
 Set Implicit Arguments.
@@ -172,7 +173,7 @@ Section fv.
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         (sigma : Term.V L -> Term L)
         (v : Term.V L)
-    : mod_elt (varTerm L) sigma v \/ termset_fv v (subst_im sigma).
+    : mod_elt (varTerm L) sigma v \/ termset_fv v (subst_im L sigma).
   Proof.
     destruct (dec_mod_elt_varTerm decV sigma v) as [ | not_mod_eltH ]; auto.
     right; exists (sigma v); split.
@@ -204,8 +205,8 @@ Section fv.
    *)
 
   Lemma comp_subst_determined_by_fvs (tau sigma sigma' : Term.V L -> Term L)
-    : (forall v, termset_fv v (subst_im tau) -> sigma v = sigma' v) ->
-      forall v, comp_subst sigma tau v = comp_subst sigma' tau v.
+    : (forall v, termset_fv v (subst_im L tau) -> sigma v = sigma' v) ->
+      forall v, comp_subst L sigma tau v = comp_subst L sigma' tau v.
   Proof.
     intros eqH v.
     unfold comp_subst.
@@ -245,7 +246,7 @@ Section fv.
   Lemma subst_endo_determines_fvs
         (sigma sigma' : Term.V L -> Term L) v t
     : term_fv v t ->
-      subst_endo sigma t = subst_endo sigma' t ->
+      subst_endo L sigma t = subst_endo L sigma' t ->
       sigma v = sigma' v.
   Proof.
     revert t.
@@ -253,11 +254,11 @@ Section fv.
     - intro v''; simpl; intro v''H; rewrite <- v''H; auto.
     - simpl.
       intros f ts allH someH eqH.
-      assert (VectorDef.map (subst_endo sigma) ts =
-              VectorDef.map (subst_endo sigma') ts) as eqH';
+      assert (VectorDef.map (subst_endo L sigma) ts =
+              VectorDef.map (subst_endo L sigma') ts) as eqH';
         [ apply (funTerm_inj eqH) | ]; clear eqH.
-      assert (VectorDef.to_list (VectorDef.map (subst_endo sigma) ts) =
-              VectorDef.to_list (VectorDef.map (subst_endo sigma') ts)) as eqH;
+      assert (VectorDef.to_list (VectorDef.map (subst_endo L sigma) ts) =
+              VectorDef.to_list (VectorDef.map (subst_endo L sigma') ts)) as eqH;
         [ apply f_equal; auto | ]; clear eqH'.
       rewrite !vec_map_to_list in eqH.
       destruct (vec_some_to_list _ _ someH) as [ t [ inH fvH ] ]; clear someH.
@@ -272,8 +273,8 @@ Section fv.
 
   Lemma comp_subst_determines_fvs
         (tau sigma sigma' : Term.V L -> Term L)
-    : (forall v, comp_subst sigma tau v = comp_subst sigma' tau v) ->
-      (forall v, termset_fv v (subst_im tau) -> sigma v = sigma' v).
+    : (forall v, comp_subst L sigma tau v = comp_subst L sigma' tau v) ->
+      (forall v, termset_fv v (subst_im L tau) -> sigma v = sigma' v).
   Proof.
     intros eqH v fvH.
     destruct fvH as [ t [ imH fvH ] ].
@@ -287,12 +288,12 @@ Section fv.
   Lemma term_fv_in_subst_endo sigma v w t
     : term_fv v t ->
       term_fv w (sigma v) ->
-      term_fv w (subst_endo sigma t).
+      term_fv w (subst_endo L sigma t).
   Proof.
     revert t.
     apply (Term_ind' (fun t => term_fv v t ->
                                term_fv w (sigma v) ->
-                               term_fv w (subst_endo sigma t))); simpl.
+                               term_fv w (subst_endo L sigma t))); simpl.
     - intros v0 eqH; rewrite eqH; auto.
     - intros f ts IH someH fvH.
       destruct (vec_some_to_list _ _ someH) as [ t [ inH fvH' ] ]; clear someH.
@@ -307,7 +308,7 @@ Section fv.
       (that's the definition). But, equivalently, there could exist
       some variable, w, such that v is free in sigma w. *)
   Lemma termset_fv_subst_im v sigma
-    : termset_fv v (subst_im sigma) <->
+    : termset_fv v (subst_im L sigma) <->
       exists w, term_fv v (sigma w).
   Proof.
     split.
