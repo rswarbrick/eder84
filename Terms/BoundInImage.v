@@ -4,7 +4,9 @@ Require Import Decidable.
 Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.ProjSet.
+
 Require Import Top.Terms.Term.
+Require Import Top.Terms.FreeVars.
 
 (* for dec_proc_to_sumbool: probably refactor this! *)
 Require Import Top.Terms.VecUtils.

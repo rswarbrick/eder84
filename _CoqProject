@@ -13,6 +13,7 @@ FinSet/ZipNatMap.v
 
 Terms/Generality.v
 Terms/Term.v
+Terms/FreeVars.v
 Terms/VecUtils.v
 Terms/Perm.v
 Terms/NoSup.v

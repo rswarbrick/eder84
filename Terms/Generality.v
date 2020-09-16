@@ -2,6 +2,7 @@ Require Import Lists.List.
 Require Import Program.Basics.
 
 Require Import Top.Terms.Term.
+Require Import Top.Terms.FreeVars.
 Require Import Top.Terms.VecUtils.
 Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.FinMod.
