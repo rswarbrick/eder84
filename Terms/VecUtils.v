@@ -512,3 +512,49 @@ Proof.
   - intros a n v IH; autorewrite with vec; rewrite IH.
     auto using Nat.max_monotone.
 Qed.
+
+Lemma vec_to_list_cons {A a n v}
+  : VectorDef.to_list (vcons A a n v) = cons a (VectorDef.to_list v).
+Proof.
+  apply eq_refl.
+Qed.
+
+Hint Rewrite @vec_to_list_cons : vec.
+
+Lemma nth_vec_to_list_order {A n} (v : vec A n) k (ltH : k < n) default
+  : nth k (VectorDef.to_list v) default =
+    VectorDef.nth_order v ltH.
+Proof.
+  revert n v ltH.
+  induction k; intros n v ltH.
+  - destruct v.
+    + contradiction (Nat.nlt_0_r 0).
+    + unfold VectorDef.nth_order; auto.
+  - destruct v.
+    + contradiction (Nat.nlt_0_r (S k)).
+    + unfold VectorDef.to_list; fold (VectorDef.to_list v); apply IHk.
+Qed.
+
+Lemma vec_max_at_ge_nth_order {A} f n (v : vec A n) k (ltH : k < n)
+  : vec_max_at f v >= f (VectorDef.nth_order v ltH).
+Proof.
+  unfold ge.
+  rewrite <- (nth_vec_to_list_order v ltH (VectorDef.nth_order v ltH)).
+  generalize (VectorDef.nth_order v ltH); intro a0.
+  revert k ltH; induction v as [ | a n v IH ]; intros k ltH.
+  - contradiction (Nat.nlt_0_r _ ltH).
+  - autorewrite with vec; simpl.
+    destruct k; auto using Nat.le_max_l.
+    apply (Nat.le_trans _ (vec_max_at f v));
+      [ apply (IH _ (Lt.lt_S_n _ _ ltH)) | apply Nat.le_max_r ].
+Qed.
+
+Lemma vec_map_nth_order {A B} (f : A -> B) n (v : vec A n) k (ltH : k < n)
+  : VectorDef.nth_order (VectorDef.map f v) ltH =
+    f (VectorDef.nth_order v ltH).
+Proof.
+  rewrite <- (nth_vec_to_list_order _ _ (VectorDef.nth_order v ltH)).
+  rewrite <- (nth_vec_to_list_order
+                _ _ (f (VectorDef.nth_order v ltH))).
+  rewrite vec_map_to_list, map_nth; auto.
+Qed.

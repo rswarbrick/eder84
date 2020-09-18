@@ -9,6 +9,7 @@ Require Import Top.FinSet.ListMod.
 
 Require Import Top.Terms.Term.
 Require Import Top.Terms.VecUtils.
+Require Import Top.Terms.TermAt.
 
 (** * Substitutions
 
@@ -270,4 +271,21 @@ Section subst.
   Proof.
     apply term_height_subst.
   Qed.
+
+  (** Since [subst_endo] is defined by recursing on terms, it commutes
+      with [term_at] in the way you'd expect *)
+
+  Lemma term_at_subst_endo pos s t t'
+    : term_at pos t = Some t' ->
+      term_at pos (subst_endo s t) = Some (subst_endo s t').
+  Proof.
+    revert t; induction pos as [ | i pos IH ]; intro t.
+    - simpl; intro someH; injection someH; intro tH; rewrite tH; auto.
+    - destruct t; [ inversion 1 | ].
+      simpl; destruct (Compare_dec.lt_dec i (Term.a L f)) as [ ltH | ];
+        [ | inversion 1 ].
+      rewrite vec_map_nth_order.
+      apply IH.
+  Qed.
+
 End subst.
