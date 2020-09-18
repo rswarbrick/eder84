@@ -4,6 +4,8 @@
 *.aux
 *.glob
 *.vo
+*.vok
+*.vos
 
 *.d
 /all.pdf
