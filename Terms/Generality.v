@@ -103,6 +103,15 @@ Section sequiv_means_perm.
                       (vec_max_at (term_height (L:=L)) ts) htH)
     end.
 
+  Lemma unpack_height_0_term_irrel
+        (t : Term L) (htH0 htH1 : term_height t = 0)
+    : unpack_height_0_term t htH0 = unpack_height_0_term t htH1.
+  Proof.
+    destruct t; auto.
+    contradiction (PeanoNat.Nat.neq_succ_0
+                     (vec_max_at (term_height (L:=L)) ts)).
+  Qed.
+
   Lemma varTerm_unpack_height_0_term t H
     : varTerm L (unpack_height_0_term t H) = t.
   Proof.
@@ -110,21 +119,18 @@ Section sequiv_means_perm.
     contradiction (PeanoNat.Nat.neq_succ_0 _ H).
   Qed.
 
-  Definition rho_v_var_on_im_sigma
-             (v : Term.V L) (fvH : termset_fv v (subst_im L sigma))
-    : Term.V L :=
+  Local Definition vrho
+             (v : Term.V L) (fvH : termset_fv v (subst_im L sigma)) : Term.V L :=
     unpack_height_0_term (rho v) (rho_im_sigma_has_height_0 v fvH).
 
-  Lemma rvvois_correct
-        v (fvH : termset_fv v (subst_im L sigma))
-    : varTerm L (rho_v_var_on_im_sigma v fvH) = rho v.
+  Lemma vrho_correct v (fvH : termset_fv v (subst_im L sigma))
+    : varTerm L (vrho v fvH) = rho v.
   Proof.
     apply varTerm_unpack_height_0_term.
   Qed.
 
-  Lemma rvvois_is_fv_for_sigma'
-        v (fvH : termset_fv v (subst_im L sigma))
-    : termset_fv (rho_v_var_on_im_sigma v fvH) (subst_im L sigma').
+  Lemma vrho_is_fv_for_sigma' v (fvH : termset_fv v (subst_im L sigma))
+    : termset_fv (vrho v fvH) (subst_im L sigma').
   Proof.
     destruct fvH as [ t [ imH fvH' ] ].
     generalize (ex_intro (fun t0 => _ /\ term_fv v t0) _
@@ -133,12 +139,37 @@ Section sequiv_means_perm.
     rewrite tH in fvH'; clear t tH.
     rewrite termset_fv_subst_im; exists w.
     rewrite sigma'H.
-    apply (term_fv_in_subst_endo rho v
-                                 (rho_v_var_on_im_sigma v fvH)
-                                 (sigma w)
-                                 fvH').
-    rewrite <- (rvvois_correct v fvH).
+    apply (term_fv_in_subst_endo rho v (vrho v fvH) (sigma w) fvH').
+    rewrite <- (vrho_correct v fvH).
     simpl; auto.
+  Qed.
+
+  Lemma vrho_irrel v (fvH0 fvH1 : termset_fv v (subst_im L sigma))
+    : vrho v fvH0 = vrho v fvH1.
+  Proof.
+    unfold vrho.
+    auto using unpack_height_0_term_irrel.
+  Qed.
+
+  Lemma varTerm_injective v w
+    : varTerm L v = varTerm L w -> v = w.
+  Proof.
+    injection 1; auto.
+  Qed.
+
+  Lemma vrho_injective
+        v0 v1
+        (fv0H : termset_fv v0 (subst_im L sigma))
+        (fv1H : termset_fv v1 (subst_im L sigma))
+    : vrho v0 fv0H = vrho v1 fv1H ->
+      v0 = v1.
+  Proof.
+    intro vrhoH.
+    apply varTerm_injective.
+    rewrite <- (rho2_fixes_im_sigma v0 fv0H), <- (rho2_fixes_im_sigma v1 fv1H).
+    unfold comp_subst; apply f_equal.
+    rewrite <- (vrho_correct v0 fv0H), <- (vrho_correct v1 fv1H).
+    apply f_equal, vrhoH.
   Qed.
 
 End sequiv_means_perm.
