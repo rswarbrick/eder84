@@ -535,6 +535,38 @@ Proof.
     + unfold VectorDef.to_list; fold (VectorDef.to_list v); apply IHk.
 Qed.
 
+Lemma vec_len_to_list A n (v : vec A n)
+  : length (VectorDef.to_list v) = n.
+Proof.
+  induction v as [ | a n v IH ]; auto.
+  rewrite vec_to_list_cons.
+  simpl; apply f_equal, IH.
+Qed.
+
+Lemma nth_error_vec_to_list_order {A n} (v : vec A n) k (ltH : k < n)
+  : nth_error (VectorDef.to_list v) k =
+    Some (VectorDef.nth_order v ltH).
+Proof.
+  assert (k < length (VectorDef.to_list v)) as ltH';
+    [ rewrite vec_len_to_list; assumption | ].
+  rewrite (nth_error_nth' _ (VectorDef.nth_order v ltH) ltH').
+  apply f_equal, nth_vec_to_list_order.
+Qed.
+
+Lemma vec_nth_order_in_to_list A n (v : vec A n) k (ltH : k < n)
+  : In (VectorDef.nth_order v ltH) (VectorDef.to_list v).
+Proof.
+  revert k ltH; induction v as [ | a n v IH ]; intros k ltH.
+  - contradiction (Nat.nlt_0_r k).
+  - rewrite vec_to_list_cons.
+    destruct k; [ left | right ].
+    + unfold VectorDef.nth_order; auto.
+    + assert (VectorDef.nth_order (vcons A a n v) ltH =
+              VectorDef.nth_order v (Lt.lt_S_n k n ltH)) as eqH;
+        [ | rewrite eqH; apply IH ].
+      unfold VectorDef.nth_order; simpl; auto.
+Qed.
+
 Lemma vec_max_at_ge_nth_order {A} f n (v : vec A n) k (ltH : k < n)
   : vec_max_at f v >= f (VectorDef.nth_order v ltH).
 Proof.

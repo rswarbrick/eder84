@@ -4,21 +4,28 @@ Require Import Bool.
 Require Import Top.FinSet.FinMod.
 
 Require Import Top.Terms.Term.
+Require Import Top.Terms.TermAt.
 Require Import Top.Terms.Subst.
 Require Import Top.Terms.VecUtils.
 
 Set Implicit Arguments.
 
-  (** * Free variables
+Lemma nth_error_Some' A (l : list A) n a
+  : nth_error l n = Some a -> n < length l.
+Proof.
+  intro someH; rewrite <- nth_error_Some, someH; inversion 1.
+Qed.
 
-      A term may have free variables. This is a set, so we encode it
-      as a predicate: [term_fv t v] means "v is a free variable in
-      t". This is extended by union in the obvious way to sets of
-      terms and sets of sets of terms.
+(** * Free variables
 
-      This matches the notation in 2.8 in Eder's paper.
+    A term may have free variables. This is a set, so we encode it
+    as a predicate: [term_fv t v] means "v is a free variable in
+    t". This is extended by union in the obvious way to sets of
+    terms and sets of sets of terms.
 
-   *)
+    This matches the notation in 2.8 in Eder's paper.
+
+ *)
 Section fv.
   Variable L : lType.
 
@@ -319,4 +326,50 @@ Section fv.
       exists (sigma w); split; auto.
       exists w; auto.
   Qed.
+
+  (** Interpreting [term_fv] in terms of [term_at]: a variable is free
+      in a term if and only if there is some index at which the
+      variable can be extracted from the term. *)
+  Lemma term_fv_to_term_at_var v t
+    : term_fv v t ->
+      exists pos, term_at pos t = Some (varTerm L v).
+  Proof.
+    revert t;
+      apply (Term_ind' (fun t => term_fv v t -> exists pos, _));
+      simpl.
+    - intros w veqwH; rewrite veqwH; exists nil; auto.
+    - intros f ts allH someH.
+      destruct (vec_some_to_list _ _ someH) as [ t' [ inH fvH ] ].
+      destruct (vec_all_to_list _ _ allH t' inH fvH) as [ pos atH ].
+      destruct (In_nth_error _ _ inH) as [ i nthH ].
+      exists (cons i pos).
+      simpl; destruct (Compare_dec.lt_dec i (Term.a L f)) as [ ltH | geH ].
+      + rewrite (nth_error_vec_to_list_order ts ltH) in nthH.
+        injection nthH; clear nthH; intro nthH.
+        rewrite nthH; apply atH.
+      + contradiction geH.
+        rewrite <- (vec_len_to_list ts).
+        apply (nth_error_Some' _ _ nthH).
+  Qed.
+
+  Lemma term_at_var_to_term_fv v t pos
+    : term_at pos t = Some (varTerm L v) ->
+      term_fv v t.
+  Proof.
+    revert t pos.
+    apply (Term_ind' (fun t => forall pos, _ -> term_fv v t)).
+    - intros w pos; destruct pos; simpl.
+      + injection 1; auto.
+      + discriminate 1.
+    - intros f ts allH pos; simpl.
+      destruct pos as [ | i pos ]; [ discriminate 1 | ]; simpl.
+      destruct (Compare_dec.lt_dec i (Term.a L f)) as [ ltH | geH ];
+        [ | discriminate 1 ].
+      intro atH.
+      assert (In (VectorDef.nth_order ts ltH) (VectorDef.to_list ts)) as inH;
+        [ apply vec_nth_order_in_to_list | ].
+      apply (vec_some_to_list_intro _ _ (VectorDef.nth_order ts ltH) inH).
+      apply (vec_all_to_list _ _ allH _ inH pos atH).
+  Qed.
+
 End fv.
