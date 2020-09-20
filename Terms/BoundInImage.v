@@ -158,26 +158,32 @@ Section fin_subst_bound_vars.
         eauto with datatypes.
   Qed.
 
-  (** We can finally show that [check_bound_in_image] does what we want. After
-      a bit of rewriting, the proof starts by applying
-      [free_in_image_iff_dom_elt_hits_it] to split up the proposition
-      part. Then there's a certain amount of unpacking on each side of the iff
-      until we can finally apply the intro/elim rules we just proved. *)
+  (** We can finally show that [check_bound_in_image] does what we
+      want. But we actually go via a "check_free_in_image" helper
+      function. The point is that this will eventually let us avoid a
+      double negation in dec_bound_in_image.
 
-  Lemma check_bound_in_image_correct
+      After a bit of rewriting, the proof starts by applying
+      [free_in_image_iff_dom_elt_hits_it] to split up the proposition
+      part. Then there's a certain amount of unpacking on each side of
+      the iff until we can finally apply the intro/elim rules we just
+      proved. *)
+
+  Definition check_free_in_image
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        (vs : list (Term.V L)) (v : Term.V L)
+    : bool := negb (check_bound_in_image decV vs v).
+
+  Lemma check_free_in_image_correct
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         (dom_elts : list (mod_dom (varTerm L) sigma))
         (fullH : FullProj md_elt dom_elts)
         (v : Term.V L)
-    : is_bound_in_image v <->
-      is_true (check_bound_in_image decV (map md_elt dom_elts) v).
+    : termset_fv v (subst_im L sigma) <->
+      is_true (check_free_in_image decV (map md_elt dom_elts) v).
   Proof.
-    unfold is_bound_in_image.
-    unfold is_true.
-    rewrite <- Bool.not_false_iff_true.
-    apply not_iff_compat.
-    rewrite (free_in_image_iff_dom_elt_hits_it decV v).
-    split.
+    unfold check_free_in_image, is_true; rewrite Bool.negb_true_iff.
+    rewrite (free_in_image_iff_dom_elt_hits_it decV v); split.
     - destruct 1 as [ fixedH | exH ]; unfold check_bound_in_image.
       + case (dec_mod_elt_varTerm decV sigma v); [ contradiction | auto ].
       + apply Bool.andb_false_intro2.
@@ -199,17 +205,46 @@ Section fin_subst_bound_vars.
         unfold md_elt; apply proj2_sig.
   Qed.
 
+  (** We proved the free version above to avoid a double negative, but
+      can unpack it to get the equivalent statement about bound
+      variables. *)
+
+  Lemma check_bound_in_image_correct
+        (decV : forall v w : Term.V L, {v = w} + {v <> w})
+        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (fullH : FullProj md_elt dom_elts)
+        (v : Term.V L)
+    : is_bound_in_image v <->
+      is_true (check_bound_in_image decV (map md_elt dom_elts) v).
+  Proof.
+    unfold is_bound_in_image, is_true.
+    rewrite <- Bool.negb_false_iff, <- Bool.not_true_iff_false.
+    fold (check_free_in_image decV (map md_elt dom_elts) v).
+    apply not_iff_compat, check_free_in_image_correct; auto.
+  Qed.
+
   (** With this, we can finally prove that [is_bound_in_image] is
       decidable. We have to pack this into a sumbool as shown so that
       we can use it to define the maps in the finiteness proof
       below. *)
+  Definition dec_free_in_image
+             (decV : forall v w : Term.V L, {v = w} + {v <> w})
+             (dom_elts : list (mod_dom (varTerm L) sigma))
+             (fullH : FullProj md_elt dom_elts)
+             (v : Term.V L)
+    : {termset_fv v (subst_im L sigma)} + {is_bound_in_image v} :=
+    (dec_proc_to_sumbool (check_free_in_image_correct decV dom_elts fullH) v).
+
   Definition dec_bound_in_image
              (decV : forall v w : Term.V L, {v = w} + {v <> w})
              (dom_elts : list (mod_dom (varTerm L) sigma))
              (fullH : FullProj md_elt dom_elts)
              (v : Term.V L)
-    : {is_bound_in_image v} + {~ is_bound_in_image v} :=
-    dec_proc_to_sumbool (check_bound_in_image_correct decV dom_elts fullH) v.
+    : {is_bound_in_image v} + {termset_fv v (subst_im L sigma)} :=
+    match dec_free_in_image decV dom_elts fullH v with
+    | left H => right H
+    | right H => left H
+    end.
 
   (** We have a finite list of variables in the domain of sigma. We
       know that every variable that is bound in the image is one of
@@ -268,11 +303,10 @@ Section fin_subst_bound_vars.
       set (chk := (check_bound_in_image decV (map md_elt dom_elts) (md_elt d))).
       fold chk in bd2chk, chk2bd.
       destruct (dec_bound_in_image decV dom_elts fullH (md_elt d))
-        as [ bdH | notbdH ];
+        as [ bdH | fvH ];
         simpl.
       + rewrite (bd2chk bdH); reflexivity.
-      + case_eq chk; auto.
-        intro chkH; contradiction (notbdH (chk2bd chkH)).
+      + case_eq chk; auto; intro H; contradiction (chk2bd H).
     - intro bd.
       destruct bd as [ v bdH ].
       exists (exist _ _ (not_fixed_if_bound_in_image decV v bdH)); simpl.
