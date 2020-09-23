@@ -20,6 +20,7 @@ Terms/Generality.v
 Terms/Perm.v
 Terms/NoSup.v
 Terms/BoundInImage.v
+Terms/SplitMap.v
 
 -Q Terms Top.Terms
 -Q FinSet Top.FinSet

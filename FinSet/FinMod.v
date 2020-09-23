@@ -109,6 +109,16 @@ Proof.
   auto.
 Qed.
 
+Lemma empty_mod_elim
+      {A B : Type} (decB : forall b b' : B, {b = b'} + {b <> b'})
+      (i f : A -> B)
+  : FullProj (@md_elt A B i f) nil -> forall a, f a = i a.
+Proof.
+  intros fullH a.
+  destruct (decB (f a) (i a)) as [ | neH ]; auto.
+  contradiction (fullH (exist _ a neH)).
+Qed.
+
 Fixpoint map_if {A B : Type} (f : A -> option B) (l : list A) : list B :=
   match l with
   | nil => nil

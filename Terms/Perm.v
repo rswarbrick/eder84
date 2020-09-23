@@ -59,6 +59,12 @@ End var_subst.
 Definition ext_inverse {A B : Type} (f : A -> B) (g : B -> A) :=
   (forall a, g (f a) = a) /\ (forall b, f (g b) = b).
 
+Lemma ext_inverse_sym (A B : Type) (f : A -> B) (g : B -> A)
+  : ext_inverse f g -> ext_inverse g f.
+Proof.
+  unfold ext_inverse; destruct 1; auto.
+Qed.
+
 (** In a minute, we're going to construct an inverse to a finite
     endomorphism, using [inj_endo_is_invertible]. That takes a little
     bit of tidying up, though, because we'll only get the inverse on
@@ -155,7 +161,7 @@ Section extend_inverse.
 
 End extend_inverse.
 
-(** Now we try to prove Eder's Lemma 2.5, which says that every
+(** Now we try to prove Eder's Lemma 2.6, which says that every
     injective var substitution is a permutation.
 
     To do so, we follow his proof and lift the substitution to a map
@@ -242,31 +248,51 @@ Section inj_subst.
   auto.
   Defined.
 
-  (* If s happens to be the identity, this was all a bit pointless: we
-     can't use [inj_endo_is_invertible] to produce the inverse map,
-     because we have no element of [D]. But, of course, if [s] is the
-     identity, it's pretty easy to find an inverse! *)
+  (** Because [s] is a [var_subst], in particular it is finite
+      modification of the identity. But that means that we can use
+      [decV] to find a value on which [s] isn't the identity. *)
+  Definition dec_id : D + (forall v, s v = v).
+    destruct substH as [ ds fullH ].
+    destruct ds as [ | d ds' ].
+    - right; apply (empty_mod_elim decV id s fullH).
+    - left; exact d.
+  Defined.
+
+  (** If s happens to be the identity, this was all a bit pointless:
+      we can't use [inj_endo_is_invertible] to produce the inverse
+      map, because we have no element of [D]. But, of course, if [s]
+      is the identity, it's pretty easy to find an inverse! *)
   Lemma ext_inverse_id
     : (forall v, s v = v) -> ext_inverse s s.
   Proof.
     intro svH; split; intros; rewrite !svH; auto.
   Qed.
 
-  Variable v0 : V.
-  Hypothesis v0H : s v0 <> v0.
-
   (* If [s] isn't the identity, there's at least one [v] where [s v <>
      v], giving us an element of [D]. Give a name to the [nat_map]
      from whose base we can extract the inverse. *)
-  Local Definition inv_nmap : nat_map proj proj :=
-    inj_endo_inv inj_nmap decV substH (exist _ v0 v0H) (proj2_sig substH).
+  Local Definition inv_nmap (d : D) : nat_map proj proj :=
+    inj_endo_inv inj_nmap decV substH d (proj2_sig substH).
 
-  Local Definition inj_subst_inv : V -> V :=
-    clamp_g s (nm_bot (inv_nmap)) decV.
+  Definition inj_subst_inv : V -> V :=
+    match dec_id with
+    | inl d => clamp_g s (nm_bot (inv_nmap d)) decV
+    | inr idH => s
+    end.
 
   Lemma ext_inverse_inj_subst : ext_inverse s inj_subst_inv.
   Proof.
-    apply ext_inverse_clamp_g; auto;
-      apply (inj_endo_is_invertible inj_nmap _ _ (exist _ v0 v0H)).
+    unfold inj_subst_inv; destruct dec_id as [ d | idH ].
+    - apply ext_inverse_clamp_g; auto;
+        apply (inj_endo_is_invertible inj_nmap _ _ d).
+    - apply (ext_inverse_id idH).
   Qed.
+
+  Lemma var_subst_inj_subst_inv : var_subst inj_subst_inv.
+  Proof.
+    unfold inj_subst_inv; destruct dec_id as [ d | ]; auto.
+    apply fin_clamp_g; auto.
+    intro d'; apply (inj_endo_is_invertible inj_nmap _ _ d).
+  Qed.
+
 End inj_subst.
