@@ -210,7 +210,7 @@ Section decA.
     Lemma list_map_cons p l : list_map (cons p l) = upd_map p (list_map l).
     Proof. reflexivity. Qed.
 
-    Lemma fin_mod_list_map l : fin_mod i (list_map l).
+    Lemma list_map_is_fin_mod l : fin_mod i (list_map l).
     Proof.
       induction l as [ | pr l IH ].
       - simpl. apply fin_mod_i.
@@ -302,16 +302,31 @@ Section decA.
         unfold md_elt; apply proj2_sig.
       Qed.
 
+      Definition fin_mod_list_graph : list (A * B) :=
+        list_graph (map md_elt (proj1_sig finH)).
+
+      Definition fin_mod_list_map : A -> B :=
+        list_map fin_mod_list_graph.
+
       Lemma fin_mod_is_list_map
-        : exists l,
-          (forall a, f a = list_map l a) /\
-          (forall p, In p l -> f (fst p) <> i (fst p)).
+        : forall a, f a = fin_mod_list_map a.
       Proof.
-        unfold fin_endo in finH.
-        unfold FiniteProj in finH.
-        destruct finH as [ l fullH ]; clear finH.
-        exists (list_graph (map (md_elt (f := f)) l)).
-        eauto using fm_graph_is_list_map, in_md_elt_graph_imp_neq.
+        apply fm_graph_is_list_map, proj2_sig.
+      Qed.
+
+      Lemma fin_mod_moves_list_elts
+        : forall p, In p fin_mod_list_graph -> f (fst p) <> i (fst p).
+      Proof.
+        eauto using in_md_elt_graph_imp_neq.
+      Qed.
+
+      Lemma in_fin_mod_list_graph a
+        : f a <> i a -> In (a, f a) fin_mod_list_graph.
+      Proof.
+        intro neH.
+        apply (in_map (fun x => (x, f x))).
+        destruct finH as [ ds fullH ]; simpl.
+        apply (fullH (exist _ a neH)).
       Qed.
     End FinIsList.
   End ListMap.

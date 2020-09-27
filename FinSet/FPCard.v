@@ -263,37 +263,32 @@ Section inj_endo.
 
   Variable a0 : A.
 
-  Local Definition g {l} (fullH : FullProj p l) : nat_map p p :=
+  Definition inj_endo_inv {l} (fullH : FullProj p l) : nat_map p p :=
     surj_nat_map_right_inverse decB decB a0 inj_endo_is_surj fullH.
 
-  Local Lemma g_is_right_inv
+  Local Lemma inj_endo_inv_right
         {l} (fullH : FullProj p l)
-    : forall a, nm_bot (nat_map_comp_h (g fullH) f) (p a) = p a.
+    : forall a, nm_bot (nat_map_comp_h (inj_endo_inv fullH) f) (p a) = p a.
   Proof.
     apply (surj_map_is_invertible decB decB a0 inj_endo_is_surj fullH).
   Qed.
 
-  Local Lemma g_is_left_inv
+  Local Lemma inj_endo_inv_left
         {l} (fullH : FullProj p l)
-    : forall a, nm_bot (nat_map_comp_h f (g fullH)) (p a) = p a.
+    : forall a, nm_bot (nat_map_comp_h f (inj_endo_inv fullH)) (p a) = p a.
   Proof.
     intro a.
     unfold inj_nat_map in injH.
-    pose proof (g_is_right_inv fullH (nm_top f a)) as gfH.
-    rewrite nat_map_nat in gfH.
-    rewrite <- nm_bot_comp_h in gfH.
-    rewrite nm_comp_h_assoc_bot in gfH.
-    rewrite nm_bot_comp_h in gfH.
-    rewrite <- nat_map_nat in gfH.
-    rewrite <- nat_map_nat.
-    exact (injH _ _ gfH).
+    pose proof (inj_endo_inv_right fullH (nm_top f a)) as gfH; revert gfH.
+    rewrite nat_map_nat,
+            <- nm_bot_comp_h, nm_comp_h_assoc_bot, nm_bot_comp_h,
+            <- nat_map_nat.
+    apply injH.
   Qed.
 
-  Lemma inj_endo_is_invertible : exists h : nat_map p p, inv_bottom f h.
+  Lemma inj_endo_is_invertible : inv_bottom f (inj_endo_inv (proj2_sig finH)).
   Proof.
-    destruct finH as [ l fullH ].
-    exists (g fullH).
-    constructor; auto using g_is_right_inv, g_is_left_inv.
+    split; auto using inj_endo_inv_right, inj_endo_inv_left.
   Qed.
 End inj_endo.
 

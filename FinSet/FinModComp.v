@@ -57,6 +57,23 @@ Arguments not_in_map_fst_const_mod {A B a} b {l}.
 Arguments list_map_in_const_mod {A B} f decA {a} b {l}.
 Arguments list_map_not_in_const_mod {A B} f decA {a} b {l}.
 
+(* Convert a mod_dom element to a graph pair (x, f x) *)
+Local Definition mod_dom_to_pr {A B : Type} {i f : A -> B}
+  : mod_dom i f -> A * B :=
+  fun d => (proj1_sig d, f (proj1_sig d)).
+
+Lemma list_graph_from_doms {A B : Type} {i f : A -> B} (finH : fin_mod i f)
+  : map mod_dom_to_pr (proj1_sig finH) = fin_mod_list_graph finH.
+Proof.
+  unfold fin_mod_list_graph; simpl.
+  destruct finH as [ ds fullH ]; simpl.
+  unfold ListMod.list_graph; rewrite map_map; auto.
+Qed.
+
+Local Definition is_pre_list
+      {A B : Type} (f : A -> B) (l : list A) (b : B) : Prop :=
+  forall a : A, f a = b <-> In a l.
+
 Section fm_precomp.
   Variables A B C : Type.
   Variable f : A -> B.
@@ -66,62 +83,60 @@ Section fm_precomp.
   Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
   Hypothesis decC : forall x y : C, {x = y} + {x <> y}.
 
-  Local Lemma exists_pre_list
-        (lbc : list (B * C)) (P : B -> Prop)
-        (finH : forall b : B, P b ->
-                              exists l : list A,
-                                forall a : A, f a = b <-> In a l)
-    : (forall p, In p lbc -> P (fst p)) ->
-      exists lac : list (A * C),
-      forall a : A,
-        list_map decA (compose g f) lac a =
-        compose (list_map decB g lbc) f a.
-  Proof.
-    induction lbc as [ | bc lbc IH ].
-    - exists nil; auto.
-    - unfold compose at 2.
-      unfold list_map at 2; fold (list_map decB g lbc).
-      destruct bc as [ b c ].
-      intro pH.
-      assert (pIH : forall p, In p lbc -> P (fst p));
-        auto with datatypes.
-      destruct (finH b (pH (b, c) (in_eq _ _))) as [ la laH ]; clear pH.
-      specialize (IH pIH); clear pIH; destruct IH as [ lac IH ].
-      exists (const_mod c la ++ lac).
-      intro a; specialize (IH a).
-      destruct (laH a) as [ laH0 laH1 ]; clear laH.
-      destruct (decB (f a) b) as [ eqH | neH ].
-      + specialize (laH0 eqH); rewrite eqH; clear eqH laH1.
-        rewrite upd_map_at.
-        rewrite (list_map_app_in decA); auto using in_map_fst_const_mod.
-        apply list_map_in_const_mod; auto.
-      + assert (H : ~ In a la); auto.
-        clear laH0 laH1.
-        rewrite upd_map_not_at; auto.
-        rewrite (list_map_app_not_in decA);
-          auto using not_in_map_fst_const_mod.
-  Qed.
+  Variable get_pre : mod_dom g g' -> list A.
+  Variable get_preH : forall d, is_pre_list f (get_pre d) (proj1_sig d).
 
-  Hypothesis finH :
-    forall b : B, g' b <> g b ->
-                  exists l : list A, forall a : A, f a = b <-> In a l.
+  (* Create a list of pairs for [compose g' f] given a (full) list of
+     dom_elts of g' *)
+  Local Fixpoint pre_compose (ds : list (mod_dom g g')) : list (A * C) :=
+    match ds with
+    | nil => nil
+    | cons d ds' => app (map (fun a => (a, (g' (proj1_sig d)))) (get_pre d))
+                        (pre_compose ds')
+    end.
+
+  (* Show that the pre_compose function actually computes the right thing *)
+  Local Lemma list_map_pre_compose (ds : list (mod_dom g g'))
+    : forall a : A,
+        list_map decA (compose g f) (pre_compose ds) a =
+        compose (list_map decB g (map mod_dom_to_pr ds)) f a.
+  Proof.
+    intro a.
+    unfold compose at 2.
+    induction ds as [ | d ds IH ]; auto.
+    simpl.
+    destruct (decB (f a) (proj1_sig d)) as [ eqH | neqH ].
+    - assert (In a (get_pre d)) as inH;
+        [ rewrite <- (get_preH d a); auto | ].
+      rewrite (list_map_app_in decA (compose g f) _ _ a);
+        [ | rewrite map_map, map_id; auto ].
+      fold (const_mod (g' (proj1_sig d)) (get_pre d)).
+      rewrite list_map_in_const_mod; auto.
+      unfold mod_dom_to_pr. rewrite <- eqH, upd_map_at; auto.
+    - assert (~ In a (get_pre d)) as notinH;
+        [ destruct (get_preH d a); auto | ].
+      rewrite (list_map_app_not_in decA (compose g f) _ _ a);
+        [ | rewrite map_map, map_id; auto ].
+      unfold mod_dom_to_pr at 1; rewrite upd_map_not_at; auto.
+  Qed.
 
   Lemma fin_mod_precomp : fin_mod g g' -> fin_mod (compose g f) (compose g' f).
   Proof.
-    intro fmH.
-    destruct (fin_mod_is_list_map decB decC fmH) as [ lbc bcH ].
-    destruct bcH as [ bcH neqH ].
-    set (P b := g' b <> g b).
-    destruct (exists_pre_list lbc P finH neqH) as [ lac acH ].
-    apply (fin_mod_ex _ _ (list_map decA (compose g f) lac) _
-                      (fun x => eq_refl (compose g f x))).
-    - intro a; specialize (acH a); specialize (bcH (f a)).
-      rewrite acH; unfold compose; auto.
-    - apply fin_mod_list_map; auto.
+    intro finH.
+    apply (fin_mod_ex _ _ (list_map decA (compose g f)
+                                    (pre_compose (proj1_sig finH)))
+                      _ (fun a => eq_refl)).
+    - intro a.
+      rewrite list_map_pre_compose; unfold compose.
+      generalize (f a); intro b; clear a.
+      rewrite (list_graph_from_doms finH).
+      fold (fin_mod_list_map decB finH).
+      rewrite <- fin_mod_is_list_map; auto.
+    - apply (list_map_is_fin_mod decA (compose g f) decC).
   Qed.
 End fm_precomp.
 
-Arguments fin_mod_precomp {A B C f g g'} decA decB decC finH.
+Arguments fin_mod_precomp {A B C f g g'} decA decB decC get_pre get_preH finH.
 
 Section fm_comp.
   Variables A B C : Type.
@@ -132,9 +147,8 @@ Section fm_comp.
   Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
   Hypothesis decC : forall x y : C, {x = y} + {x <> y}.
 
-  Hypothesis finpreH :
-    forall b : B, g' b <> g b ->
-                  exists l : list A, forall a : A, f a = b <-> In a l.
+  Variable get_pre : mod_dom g g' -> list A.
+  Variable get_preH : forall d, is_pre_list f (get_pre d) (proj1_sig d).
 
   Hypothesis finfH : fin_mod f f'.
   Hypothesis fingH : fin_mod g g'.
@@ -179,7 +193,7 @@ Section fm_comp.
       done in the [SymbComp.FinSet] script and above. *)
 
   Local Definition fin_proj0 : FiniteProj proj0 :=
-    finite_sum finfH (fin_mod_precomp decA decB decC finpreH fingH).
+    finite_sum finfH (fin_mod_precomp decA decB decC get_pre get_preH fingH).
 
   (** To apply the [finite_surj] lemma, we'll need to prove that the
       bottom map has the required surjectivity. This is just a finicky
@@ -217,7 +231,7 @@ Section fm_comp.
   Qed.
 End fm_comp.
 
-Arguments compose_fin_mod {A B C f f' g g'} decA decB decC finpreH.
+Arguments compose_fin_mod {A B C f f' g g'} decA decB decC get_pre get_preH.
 
 Section fe_comp.
   Variable A : Type.
@@ -227,18 +241,26 @@ Section fe_comp.
   Hypothesis finF : fin_endo f.
   Hypothesis finG : fin_endo g.
 
+  Local Definition get_pre_id (d : mod_dom id g) : list A :=
+    cons (proj1_sig d) nil.
+
+  Local Lemma get_pre_idH (d : mod_dom id g)
+    : is_pre_list id (get_pre_id d) (proj1_sig d).
+  Proof.
+    destruct d as [ a modH ]; unfold get_pre_id; simpl.
+    intro b; split; unfold id.
+    - intro baH; rewrite baH; auto with datatypes.
+    - destruct 1 as [ | innilH ]; auto.
+      contradiction innilH.
+  Qed.
+
   Lemma compose_fin_endo : fin_endo (compose g f).
   Proof.
     unfold fin_endo in *.
     apply (fin_mod_ex (compose id id) id
                       (compose g f) (compose g f)); auto.
-    enough (forall a, g a <> id a ->
-                      exists l, forall a' : A, id a' = a <-> In a' l);
-      try apply (compose_fin_mod decA decA decA); auto.
-    unfold id; intros a gH; exists (a :: nil).
-    constructor.
-    - intro eqH; rewrite eqH; auto with datatypes.
-    - destruct 1; auto; try contradiction.
+    apply (compose_fin_mod decA decA decA
+                           get_pre_id get_pre_idH); auto.
   Qed.
 End fe_comp.
 

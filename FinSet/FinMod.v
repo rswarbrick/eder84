@@ -43,7 +43,7 @@ Section FinMod.
   Definition mod_elt f (a : A) := f a <> i a.
   Definition mod_dom f := sig (mod_elt f).
   Definition md_elt f : mod_dom f -> A := @proj1_sig A (mod_elt f).
-  Definition fin_mod f : Prop := FiniteProj (@md_elt f).
+  Definition fin_mod f : Type := FiniteProj (@md_elt f).
 
   (** As you would expect, [i] is a [fin_mod]. Indeed, its
       modification domain is empty. *)
@@ -162,7 +162,7 @@ Qed.
     [fin_mod] of the identity map [fin_endo].
 *)
 
-Definition fin_endo {A : Type} (f : A -> A) : Prop := fin_mod id f.
+Definition fin_endo {A : Type} (f : A -> A) : Type := fin_mod id f.
 
 (** The identity map is a FinEndo (since it's [i]) *)
 

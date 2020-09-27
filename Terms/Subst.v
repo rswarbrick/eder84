@@ -232,17 +232,15 @@ Section subst.
       (forall x y : Term.F L, {x = y} + {x <> y}) ->
       fin_subst sigma -> fin_subst tau -> fin_subst (comp_subst sigma tau).
   Proof.
-    unfold fin_subst at 1 2.
+    unfold fin_subst.
     intros decV decF fmS fmT.
     set (decT := (decTerm decV decF)).
-    destruct (fin_mod_is_list_map decV decT fmS) as [ sl slH ].
-    destruct (fin_mod_is_list_map decV decT fmT) as [ tl tlH ].
-    destruct slH as [ slH _ ].
-    destruct tlH as [ tlH _ ].
-    apply (fin_mod_ex _ _ _ _
+    apply (fin_mod_ex _ _ _ (comp_subst sigma tau)
                       (fun x => eq_refl (varTerm L x))
-                      (stl_map_v sigma tau sl tl decV slH tlH)).
-    apply (fin_mod_list_map decV _ decT).
+                      (stl_map_v _ _ _ _ decV
+                                 (fin_mod_is_list_map decV decT fmS)
+                                 (fin_mod_is_list_map decV decT fmT))).
+    apply list_map_is_fin_mod; auto.
   Qed.
 
   (** Finally, we show that restricting a finite substitution to

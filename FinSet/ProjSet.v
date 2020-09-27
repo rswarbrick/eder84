@@ -132,8 +132,8 @@ Qed.
 Definition FullProj (A B : Type) (p : A -> B) (l : list A) : Prop :=
   forall a : A, InProj p (p a) l.
 
-Definition FiniteProj (A B : Type) (p : A -> B) : Prop :=
-  exists l : list A, FullProj p l.
+Definition FiniteProj (A B : Type) (p : A -> B) : Type :=
+  { l : list A | FullProj p l }.
 
 (** * Decidability
 

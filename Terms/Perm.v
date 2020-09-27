@@ -12,43 +12,41 @@ Require Import Top.Terms.Subst.
 
 Set Implicit Arguments.
 
-(** A [var_subst] is like a substitution, but induced by a map [V ->
-    V]. Composing on the left with [varTerm] gives the substitution
-    itself. *)
+(** To represent a substitution that maps variables to variables, we
+    define a [var_subst] to be a finite endomorphism on V. Composing
+    on the left with [varTerm] gives the substitution itself. *)
 
 Section var_subst.
-  Definition var_subst (V : Type) := sig (@fin_endo V).
+  Definition var_subst {V} (s : V -> V) := fin_endo s.
 
   Variable L : lType.
+  Notation V := (Term.V L).
 
-  Definition var_subst_subst (s : var_subst (Lmodule.V L))
-    : Lmodule.V L -> Term L :=
-    compose (varTerm L) (proj1_sig s).
+  Definition var_subst_subst (s : V -> V) : V -> Term L :=
+    compose (varTerm L) s.
 
-  Hypothesis decV : forall x y : Lmodule.V L, {x = y} + { ~ x = y }.
+  Hypothesis decV : forall x y : V, {x = y} + { ~ x = y }.
   Hypothesis decF : forall x y : Lmodule.F L, {x = y} + { ~ x = y }.
 
   (** Since we're generally interested in finite substitutions, we
       would hope that a [var_subst] induces one, and it does. *)
 
   Lemma fin_subst_var_subst s
-    : fin_subst L (var_subst_subst s).
+    : var_subst s -> fin_subst L (var_subst_subst s).
   Proof.
-    destruct s as [ f finH ]; simpl.
-    apply (compose_fin_mod decV decV (decTerm decV decF));
-      first [ apply finH | apply fin_mod_i | contradiction ].
+    intro finH; unfold var_subst_subst; simpl.
+    eapply (compose_fin_mod decV decV (decTerm decV decF) _ _
+                            finH
+                            (fin_mod_i (varTerm L))).
+    Unshelve.
+    - destruct 1 as [ x eltH ]; contradiction eltH; auto.
+    - intro d; destruct d as [ x eltH ]; contradiction eltH; auto.
   Qed.
 
-  Definition compose_var_subst (t s : var_subst (Lmodule.V L)) :=
-    match t, s with
-      exist _ g gH, exist _ f fH =>
-      exist _ (compose g f) (compose_fin_endo decV fH gH)
-    end.
-
-  Lemma proj1_sig_compose_var_subst t s
-    : proj1_sig (compose_var_subst t s) = compose (proj1_sig t) (proj1_sig s).
+  Lemma var_subst_compose (t s : V -> V)
+    : var_subst s -> var_subst t -> var_subst (compose t s).
   Proof.
-    destruct t as [ g gH ]; destruct s as [ f fH ]; auto.
+    apply (compose_fin_endo decV).
   Qed.
 End var_subst.
 
@@ -60,9 +58,6 @@ End var_subst.
 
 Definition ext_inverse {A B : Type} (f : A -> B) (g : B -> A) :=
   (forall a, g (f a) = a) /\ (forall b, f (g b) = b).
-
-Definition is_var_perm {V} (s : var_subst V) : Prop :=
-  exists t : var_subst V, ext_inverse (proj1_sig s) (proj1_sig t).
 
 (** In a minute, we're going to construct an inverse to a finite
     endomorphism, using [inj_endo_is_invertible]. That takes a little
@@ -151,19 +146,13 @@ Section extend_inverse.
     auto.
   Qed.
 
-  Local Lemma inverses : ext_inverse f clamp_g.
+  Lemma ext_inverse_clamp_g : ext_inverse f clamp_g.
   Proof.
     constructor; intro a;
       destruct (decA (f a) a);
       auto using gf_id_eq, gf_id_ne, fg_id_eq, fg_id_ne.
   Qed.
 
-  Lemma exists_extended_inverse
-    : exists g', fin_mod id g' /\ ext_inverse f g'.
-  Proof.
-    exists clamp_g.
-    auto using inverses, fin_clamp_g.
-  Qed.
 End extend_inverse.
 
 (** Now we try to prove Eder's Lemma 2.5, which says that every
@@ -172,7 +161,7 @@ End extend_inverse.
     To do so, we follow his proof and lift the substitution to a map
     from its domain to itself. Most of the logic should be
     unsurprising. The work to extend the inverse from the domain [D]
-    to [V] was basically done in [exists_extended_inverse] above.
+    to [V] was basically done in the [extended_inverse] section above.
 
     The one not-so-obvious thing is the [maybe_id] hypothesis. The
     problem is that [inj_endo_is_invertible] needs some element of [D]
@@ -181,16 +170,12 @@ End extend_inverse.
 
 Section inj_subst.
   Variable V : Type.
-  Variable s : var_subst V.
-  Hypothesis injH :
-    forall v w : V, proj1_sig s v = proj1_sig s w -> v = w.
+  Variable s : V -> V.
+  Variable substH : var_subst s.
+  Hypothesis injH : forall v w : V, s v = s w -> v = w.
 
-  (** Firstly, we define some local variables to tidy up the names a
-      little. We'll define [f] to be the underlying map of [s] and [D]
-      to be the domain. *)
-
-  Local Definition f : V -> V := proj1_sig s.
-  Local Definition D : Type := mod_dom id f.
+  (** We'll define [D] to be the domain of [s] *)
+  Local Definition D : Type := mod_dom id s.
 
   (** The first part of the argument in the paper explains why a
       variable [v] in the domain must be mapped to another element of
@@ -198,15 +183,15 @@ Section inj_subst.
       injectivity would then imply that [f v = v], contradicting the
       fact that [v] was in the domain. *)
 
-  Local Lemma f_maps_into_dom v : f v <> v -> f (f v) <> f v.
+  Local Lemma f_maps_into_dom v : s v <> v -> s (s v) <> s v.
   Proof.
     intuition.
   Qed.
 
   Local Lemma maps_into_dom {v}
-    : mod_elt id f v -> mod_elt id f (f v).
+    : mod_elt id s v -> mod_elt id s (s v).
   Proof.
-    fold f in injH; unfold mod_elt, id; apply f_maps_into_dom.
+    unfold mod_elt, id; apply f_maps_into_dom.
   Qed.
 
   (** Knowing this we can construct a natural map, where the top map
@@ -215,32 +200,26 @@ Section inj_subst.
 
   Local Definition proj : D -> V := md_elt.
 
-  Local Lemma finite_proj : FiniteProj proj.
-  Proof.
-    unfold proj, D, f.
-    destruct s as [ f' H ].
-    unfold fin_endo, fin_mod in H.
-    apply H.
-  Qed.
+  Local Definition finite_proj : FiniteProj proj := substH.
 
   Local Definition top_map : D -> D :=
-    fun d => let (v, eltH) := d in exist _ (f v) (maps_into_dom eltH).
+    fun d => let (v, eltH) := d in exist _ (s v) (maps_into_dom eltH).
 
   Local Lemma top_map_natural
-    : is_nat_map proj proj (top_map, f).
+    : is_nat_map proj proj (top_map, s).
   Proof.
     intro d; destruct d as [ v H ]; auto.
   Qed.
 
   Local Definition nmap : nat_map proj proj :=
-    exist _ (top_map, f) top_map_natural.
+    exist _ (top_map, s) top_map_natural.
 
   (** The injectivity lemma, [injH], then implies that [nmap] is an
       [inj_nat_map]. *)
 
   Local Lemma inj_nmap : inj_nat_map nmap.
   Proof.
-    intros d0 d1; unfold nmap, proj, f; auto.
+    intros d0 d1; unfold nmap, proj; auto.
   Qed.
 
   (** With decidability on [V], we can strengthen [maps_into_dom]
@@ -249,13 +228,13 @@ Section inj_subst.
   Hypothesis decV : forall x y : V, {x = y} + { ~ x = y }.
 
   Local Lemma idem_iff_ident {v}
-    : f (f v) = f v <-> f v = v.
+    : s (s v) = s v <-> s v = v.
   Proof.
-    fold f in injH; constructor; try congruence.
-    destruct (decV (f v) v); auto.
+    split; try congruence.
+    destruct (decV (s v) v); auto.
   Qed.
 
-  Local Definition lift_non_idem (v : V) (neH : f (f v) <> f v) : D.
+  Local Definition lift_non_idem (v : V) (neH : s (s v) <> s v) : D.
   refine (exist _ v _).
   unfold id.
   intro eqH.
@@ -263,22 +242,31 @@ Section inj_subst.
   auto.
   Defined.
 
-  Hypothesis maybe_id :
-    (forall v, proj1_sig s v = v) \/ (exists v, proj1_sig s v <> v).
-
-  Lemma inj_subst_is_perm : is_var_perm s.
+  (* If s happens to be the identity, this was all a bit pointless: we
+     can't use [inj_endo_is_invertible] to produce the inverse map,
+     because we have no element of [D]. But, of course, if [s] is the
+     identity, it's pretty easy to find an inverse! *)
+  Lemma ext_inverse_id
+    : (forall v, s v = v) -> ext_inverse s s.
   Proof.
-    destruct maybe_id.
-    - exists s. constructor; intro v; rewrite (H v), (H v); auto.
-    - destruct H as [ v vH ].
-      destruct (inj_endo_is_invertible inj_nmap decV finite_proj
-                                       (exist _ v vH)) as [ t tH ].
-      unfold inv_bottom, nmap, nat_map_comp_h, compose in tH; simpl in tH.
-      destruct (exists_extended_inverse
-                  _ (proj2_sig s) decV (proj1 tH) (proj2 tH) f_maps_into_dom)
-        as [ g gH ].
-      destruct gH as [ fmH invH ].
-      exists (exist _ g fmH); simpl.
-      exact invH.
+    intro svH; split; intros; rewrite !svH; auto.
+  Qed.
+
+  Variable v0 : V.
+  Hypothesis v0H : s v0 <> v0.
+
+  (* If [s] isn't the identity, there's at least one [v] where [s v <>
+     v], giving us an element of [D]. Give a name to the [nat_map]
+     from whose base we can extract the inverse. *)
+  Local Definition inv_nmap : nat_map proj proj :=
+    inj_endo_inv inj_nmap decV substH (exist _ v0 v0H) (proj2_sig substH).
+
+  Local Definition inj_subst_inv : V -> V :=
+    clamp_g s (nm_bot (inv_nmap)) decV.
+
+  Lemma ext_inverse_inj_subst : ext_inverse s inj_subst_inv.
+  Proof.
+    apply ext_inverse_clamp_g; auto;
+      apply (inj_endo_is_invertible inj_nmap _ _ (exist _ v0 v0H)).
   Qed.
 End inj_subst.
