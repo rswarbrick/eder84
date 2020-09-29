@@ -30,8 +30,29 @@ Set Implicit Arguments.
     image). When [B] is decidable, we'll find that there's a unique
     cardinality.
  *)
-Definition fp_card {A B : Type} (p : A -> B) (n : nat) : Prop :=
-  exists l, distinct (map p l) /\ FullProj p l /\ length l = n.
+Section proj.
+  Variables A B : Type.
+  Variable p : A -> B.
+
+  Definition is_card_list (l : list A) : Prop :=
+    distinct (map p l) /\ FullProj p l.
+
+  Definition fp_card_list : Type := sig is_card_list.
+
+  Definition fp_card (cl : fp_card_list) : nat := length (proj1_sig cl).
+
+  Lemma card_list_is_distinct (cl : fp_card_list)
+    : distinct (map p (proj1_sig cl)).
+  Proof.
+    destruct cl as [ l [ distH fullH ] ]; auto.
+  Qed.
+
+  Lemma card_list_is_full (cl : fp_card_list)
+    : FullProj p (proj1_sig cl).
+  Proof.
+    destruct cl as [ l [ distH fullH ] ]; auto.
+  Qed.
+End proj.
 
 (**
    A finite projection always has a cardinality, providing that we
@@ -100,21 +121,28 @@ Section rem_dups_below.
   Qed.
 End rem_dups_below.
 
-Lemma fp_card_exists
-      {A B : Type} (p : A -> B)
-      (decB : forall x y : B, {x = y} + {x <> y})
-  : FiniteProj p -> exists n, fp_card p n.
-Proof.
-  destruct 1 as [ l fullH ].
-  unfold fp_card.
-  set (l' := rem_dups_below p decB nil l).
-  exists (length l'), l'; intuition.
-  - apply (distinct_map_rem_dups_below p decB nil l).
-  - unfold FullProj in *.
-    intro a; specialize (fullH a).
-    unfold InProj in *.
-    apply in_map_rem_dups_below; auto.
-Qed.
+Section dec_fp_card_list.
+  Variables A B : Type.
+  Variable p : A -> B.
+  Variable finH : FiniteProj p.
+
+  Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
+
+  Local Definition dec_fp_card_list' : list A :=
+    rem_dups_below p decB nil (proj1_sig finH).
+
+  Local Lemma is_card_list_dec : is_card_list p dec_fp_card_list'.
+  Proof.
+    split.
+    - apply distinct_map_rem_dups_below.
+    - intro.
+      apply in_map_rem_dups_below; auto.
+      apply (proj2_sig finH).
+  Qed.
+
+  Definition dec_fp_card_list : fp_card_list p :=
+    exist _ _ is_card_list_dec.
+End dec_fp_card_list.
 
 (**
   If we have an injective map from one projection to the next, then a
@@ -155,22 +183,13 @@ Section inj_map.
 
   Hypothesis decD : forall x y : D, {x = y} + {x <> y}.
 
-  Lemma fp_card_inj_le n m
-    : fp_card p n -> fp_card q m -> n <= m.
+  Lemma fp_card_inj_le (clp : fp_card_list p) (clq : fp_card_list q)
+    : fp_card clp <= fp_card clq.
   Proof.
     unfold fp_card.
-    destruct 1 as [ l1 H1 ].
-    destruct H1 as [ dist1H H1 ].
-    destruct H1 as [ full1H <- ].
-    destruct 1 as [ l2 H2 ].
-    destruct H2 as [ dist2H H2 ].
-    destruct H2 as [ full2H <- ].
-    enough (maplenH : length (map p l1) <= length (map q l2));
-      try (rewrite map_length, map_length in maplenH; auto).
-    apply (inj_on_list_length
-             (map p l1) (map q l2) decD dist1H dist2H
-             (nat_map_gives_list_map l1 full2H)
-             (nm_bot_inj_on_list l1)).
+    rewrite <- (map_length p), <- (map_length q).
+    destruct (proj2_sig clp), (proj2_sig clq).
+    eauto using inj_on_list_length, nat_map_gives_list_map, nm_bot_inj_on_list.
   Qed.
 End inj_map.
 
@@ -179,15 +198,15 @@ Section fp_card_unique.
   Variable p : A -> B.
   Hypothesis decB : forall x y : B, {x = y} + {x <> y}.
 
-  Local Lemma fp_card_le n m
-    : fp_card p n -> fp_card p m -> n <= m.
+  Local Lemma fp_card_le (cl cl' : fp_card_list p)
+    : fp_card cl <= fp_card cl'.
   Proof.
     apply (fp_card_inj_le (f:=nat_map_v p));
       unfold inj_nat_map; auto.
   Qed.
 
-  Lemma fp_card_unique n m
-    : fp_card p n -> fp_card p m -> n = m.
+  Lemma fp_card_unique (cl cl' : fp_card_list p)
+    : fp_card cl = fp_card cl'.
   Proof.
     auto using fp_card_le, Nat.le_antisymm.
   Qed.
@@ -212,9 +231,9 @@ Section inj_same_size.
   Variable q : C -> D.
   Variable f : nat_map p q.
 
-  Variable n : nat.
-  Hypothesis cardpH : fp_card p n.
-  Hypothesis cardqH : fp_card q n.
+  Variable cardp : fp_card_list p.
+  Variable cardq : fp_card_list q.
+  Hypothesis cardeqH : fp_card cardp = fp_card cardq.
 
   Hypothesis injH : inj_nat_map f.
 
@@ -223,19 +242,17 @@ Section inj_same_size.
   Lemma fp_inj_same_card_is_surj
     : SurjectiveProj f.
   Proof.
-    destruct cardpH as [ lp H ];
-      destruct H as [ distpH H ];
-      destruct H as [ fullpH lenpH ].
-    destruct cardqH as [ lq H ];
-      destruct H as [ distqH H ];
-      destruct H as [ fullqH lenqH ].
-    assert (surjH : surj_on_list (nm_bot f) (map p lp) (map q lq)).
-      try (apply (inj_on_eql_list_is_surj
-                    (map p lp) (map q lq) decD distpH distqH
-                    (nat_map_gives_list_map f lp fullqH)
-                    (nm_bot_inj_on_list injH lp));
-           rewrite !map_length; congruence).
-    intros c.
+    destruct cardp as [ lp H ];
+      destruct H as [ distpH fullpH ].
+    destruct cardq as [ lq H ];
+      destruct H as [ distqH fullqH ].
+    assert (surjH : surj_on_list (nm_bot f) (map p lp) (map q lq));
+      [ apply (inj_on_eql_list_is_surj _ _ decD
+                                       distpH distqH
+                                       (nat_map_gives_list_map f lp fullqH)
+                                       (nm_bot_inj_on_list injH lp));
+        revert cardeqH; unfold fp_card; rewrite !map_length; auto | ].
+    clear cardeqH; intros c.
     specialize (fullqH c).
     specialize (surjH (q c) fullqH).
     rewrite in_map_iff in surjH.
@@ -257,8 +274,9 @@ Section inj_endo.
   Lemma inj_endo_is_surj
     : SurjectiveProj f.
   Proof.
-    destruct (fp_card_exists decB finH) as [ n cardH ].
-    apply (fp_inj_same_card_is_surj cardH cardH injH decB).
+    apply (fp_inj_same_card_is_surj (dec_fp_card_list finH decB)
+                                    (dec_fp_card_list finH decB)
+                                    eq_refl injH decB).
   Qed.
 
   Variable a0 : A.
@@ -381,55 +399,63 @@ Section inj_surj.
   Hypothesis decB1 : forall u v : B1, {u = v} + {u <> v}.
   Hypothesis decB2 : forall u v : B2, {u = v} + {u <> v}.
 
-  Variables n1 n2 : nat.
-  Hypothesis card1H : fp_card p1 n1.
-  Hypothesis card2H : fp_card p2 n2.
-  Hypothesis card_leH : n1 <= n2.
+  Variable card1 : fp_card_list p1.
+  Variable card2 : fp_card_list p2.
+  Hypothesis card_leH : fp_card card1 <= fp_card card2.
 
-  Lemma inj_from_smaller_card (fb : B1 -> B2)
-    : exists h : nat_map p1 p2, inj_nat_map h.
+  Local Definition zipped_list_12 : list (A1 * A2) :=
+    combine (proj1_sig card1) (proj1_sig card2).
+
+  Local Lemma zipped_list_12_fst_is_full
+    : FullProj p1 (map fst zipped_list_12).
   Proof.
-    destruct card1H as [ as1 [ dist1H [ full1H len1H ] ] ].
-    destruct card2H as [ as2 [ dist2H [ full2H len2H ] ] ].
-    clear card1H card2H.
-    set (prs := combine as1 as2).
-    assert (map fst prs = as1) as mapfstH;
-      [ unfold prs; apply proj1_combine_shorter;
-        rewrite len1H, len2H; auto | ].
-    assert (FullProj p1 (map fst prs)) as fullmap1H;
-      [ rewrite mapfstH; auto | ].
-    exists (zip_nat_map p2 decB1 fb prs fullmap1H).
-    apply zip_nat_map_inj_intro; auto.
-    unfold pr_proj2; rewrite <- map_map.
-    unfold prs; rewrite map_snd_combine, map_take.
-    auto using distinct_take.
+    unfold zipped_list_12; rewrite (proj1_combine_shorter _ _ card_leH).
+    apply card_list_is_full.
   Qed.
 
-  Lemma surj_from_larger_card (fb : B2 -> B1) (a1 : A1)
-    : exists h : nat_map p2 p1, SurjectiveProj h.
+  Definition inj_from_smaller (fb : B1 -> B2) : nat_map p1 p2 :=
+    zip_nat_map p2 decB1 fb zipped_list_12 zipped_list_12_fst_is_full.
+
+  Lemma inj_from_smaller_is_inj (fb : B1 -> B2)
+    : inj_nat_map (inj_from_smaller fb).
   Proof.
-    destruct card1H as [ as1 [ dist1H [ full1H len1H ] ] ].
-    destruct card2H as [ as2 [ dist2H [ full2H len2H ] ] ].
-    clear card1H card2H.
-    set (prs := combine_with_tail2 a1 as2 as1).
-    assert (map fst prs = as2) as mapfstH;
-      [ unfold prs; rewrite map_fst_combine_with_tail2; auto | ].
-    assert (FullProj p2 (map fst prs)) as fullmap2H;
-      [ rewrite mapfstH; auto | ].
-    exists (zip_nat_map p1 decB2 fb prs fullmap2H).
+    apply zip_nat_map_inj_intro; auto.
+    unfold pr_proj2, zipped_list_12;
+      rewrite <- map_map, map_snd_combine, map_take.
+    auto using distinct_take, card_list_is_distinct.
+  Qed.
+
+  Local Definition zipped_list_21 a1 : list (A2 * A1) :=
+    combine_with_tail2 a1 (proj1_sig card2) (proj1_sig card1).
+
+  Local Lemma zipped_list_21_fst_is_full a1
+    : FullProj p2 (map fst (zipped_list_21 a1)).
+  Proof.
+    unfold zipped_list_21; rewrite map_fst_combine_with_tail2.
+    apply card_list_is_full.
+  Qed.
+
+  Definition surj_from_larger fb a1 : nat_map p2 p1 :=
+    zip_nat_map p1 decB2 fb
+                (zipped_list_21 a1) (zipped_list_21_fst_is_full a1).
+
+  Lemma surj_from_larger_is_surj (fb : B2 -> B1) (a1 : A1)
+    : SurjectiveProj (surj_from_larger fb a1).
+  Proof.
     apply zip_nat_map_surj_intro.
-    - unfold pr_proj1; rewrite <- map_map, mapfstH; auto.
-    - apply (take_full_proj n1).
-      assert (n1 <= min (length as2) (length as1)) as n1minH;
-        [ rewrite len1H, len2H;
-          apply (Nat.min_glb n2 n1 n1 card_leH (le_n n1)) | ].
-      unfold prs.
+    - unfold zipped_list_21, pr_proj1;
+        rewrite <- map_map, map_fst_combine_with_tail2.
+      auto using card_list_is_distinct.
+    - apply (take_full_proj (fp_card card1)).
+      assert (fp_card card1 <= min (fp_card card2) (fp_card card1)) as n1minH;
+        [ apply (Nat.min_glb _ _ _ card_leH (le_n _)) | ].
       rewrite <- map_take.
-      rewrite (take_initial_combine_with_tail2 a1 as2 as1 n1minH).
+      unfold zipped_list_21;
+        rewrite (take_initial_combine_with_tail2 a1 _ _ n1minH).
       rewrite map_take, map_snd_combine, take_take.
-      rewrite len1H, len2H, (min_r _ _ card_leH), Nat.min_id, <- len1H.
-      rewrite take_length.
-      apply full1H.
+      unfold fp_card in card_leH.
+      rewrite (min_r _ _ card_leH), Nat.min_id, take_length.
+      auto using card_list_is_full.
   Qed.
 
 End inj_surj.
