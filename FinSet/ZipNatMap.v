@@ -24,6 +24,7 @@ Require Import Lists.List.
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.Distinct.
 Require Import Top.FinSet.FinSet.
+Require Import Top.FinSet.FinMod.
 Require Import Top.FinSet.ProjSet.
 
 Set Implicit Arguments.
@@ -295,5 +296,81 @@ Section znm.
     rewrite <- !(nat_map_nat (zip_nat_map fb l fullH)), <- eq2H.
     auto using f_equal, distinct_zip_nat_map_at.
   Qed.
+
+  (** [zip_nat_map] yields a finite modification of the underlying map
+      (with an item in the domain for each entry in the list). This is
+      kind of obvious: the map is only modified for items in the
+      list. However, it's a bit fiddly to prove because you need to
+      construct a list of [mod_dom] elements. Of course, not every
+      entry in the list is necessarily one. So we start by tidying up
+      the list. *)
+  Section fin_mod.
+    Hypothesis decB2 : forall x y : B2, {x = y} + {x <> y}.
+    Variable fb : B1 -> B2.
+
+    Definition znm_top_option l (a1 : A1)
+      : option (mod_dom fb (bot_map fb l)) :=
+      match decB2 (bot_map fb l (p1 a1)) (fb (p1 a1)) with
+      | left eqH => None
+      | right neH => Some (exist _ (p1 a1) neH)
+      end.
+
+    Definition znm_bot_option l (b1 : B1) : option B1 :=
+      match decB2 (bot_map fb l b1) (fb b1) with
+      | left _ => None
+      | right _ => Some b1
+      end.
+
+    Lemma bot_map_at l a1 a2
+      : bot_map fb ((a1, a2) :: l) (p1 a1) = p2 a2.
+    Proof.
+      unfold bot_map, lift_pr_proj; simpl.
+      destruct (decB1 (p1 a1) (p1 a1)); [ auto | contradiction ].
+    Qed.
+
+    Lemma bot_map_not_at l a1 a2 b1
+      : p1 a1 <> b1 ->
+        bot_map fb ((a1, a2) :: l) b1 = bot_map fb l b1.
+    Proof.
+      intro neH.
+      unfold bot_map at 1, lift_pr_proj; simpl.
+      destruct (decB1 (p1 a1) b1); [ contradiction | auto ].
+    Qed.
+
+    Lemma lift_zip_nat_map_ne l b1
+      : bot_map fb l b1 <> fb b1 ->
+        exists a1, p1 a1 = b1 /\ znm_bot_option l (p1 a1) = Some b1.
+    Proof.
+      induction l as [ | [ a1 a2 ] l IH ].
+      - intro neqH; contradiction neqH; unfold bot_map; simpl; auto.
+      - unfold bot_map; simpl.
+        destruct (decB1 (p1 a1) b1) as [ eqH | neH ].
+        + simpl; intro neH.
+          exists a1; split; auto.
+          unfold znm_bot_option.
+          rewrite bot_map_at; rewrite eqH; clear eqH.
+          destruct (decB2 (p2 a2) (fb b1)); tauto.
+        + fold (bot_map fb l b1).
+          intro neH'; destruct (IH neH') as [ a1' [ p1H botH ] ]; clear neH'.
+          exists a1'; split; auto.
+          rewrite p1H in *.
+          unfold znm_bot_option; rewrite (bot_map_not_at l a2 neH); auto.
+    Qed.
+
+    Lemma fin_mod_zip_nat_map l fullH
+      : fin_mod fb (nm_bot (zip_nat_map fb l fullH)).
+    Proof.
+      unfold fin_mod.
+      apply (finite_surj_option md_elt
+                                (znm_top_option l)
+                                (znm_bot_option l)
+                                (exist _ (map fst l) fullH)).
+      - intro a1.
+        unfold znm_top_option, znm_bot_option.
+        destruct (decB2 (bot_map fb l (p1 a1)) (fb (p1 a1))); auto.
+      - intro d; destruct d as [ b1 neH ].
+        destruct (lift_zip_nat_map_ne l neH) as [ a1 [ inH p1H ] ]; eauto.
+    Qed.
+  End fin_mod.
 
 End znm.
