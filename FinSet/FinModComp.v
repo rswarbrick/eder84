@@ -235,11 +235,11 @@ Arguments compose_fin_mod {A B C f f' g g'} decA decB decC get_pre get_preH.
 
 Section fe_comp.
   Variable A : Type.
-  Variables f g : A -> A.
+  Variables g f : A -> A.
 
   Hypothesis decA : forall x y : A, {x = y} + { ~ x = y }.
-  Hypothesis finF : fin_endo f.
   Hypothesis finG : fin_endo g.
+  Hypothesis finF : fin_endo f.
 
   Local Definition get_pre_id (d : mod_dom id g) : list A :=
     cons (proj1_sig d) nil.
@@ -264,4 +264,4 @@ Section fe_comp.
   Qed.
 End fe_comp.
 
-Arguments compose_fin_endo {A f g} decA finF finG.
+Arguments compose_fin_endo {A g f} decA finG finF.

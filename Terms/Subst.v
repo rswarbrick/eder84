@@ -155,13 +155,18 @@ Section subst.
       variables differently from [varTerm]. In our development, this
       means that it should be a finite modification of [varTerm]. *)
 
-  Definition fin_subst := fin_mod (varTerm L).
+  Definition is_fin_subst := fin_mod (varTerm L).
+
+  Definition fin_subst := sigT is_fin_subst.
+
+  Definition fin_subst_subst : fin_subst -> Subst :=
+    fun s => let (s', _) := s in s'.
 
   (** We can construct our first [fin_subst] from varTerm. Since this
       is a trivial modification of [varTerm], it definitely satisfies
       the definition. *)
 
-  Lemma fin_subst_varTerm : fin_subst (varTerm L).
+  Lemma fin_subst_varTerm : is_fin_subst (varTerm L).
   Proof.
     apply fin_mod_i.
   Qed.
@@ -227,10 +232,11 @@ Section subst.
       the composition of two finite substitutions is itself finite
       (assuming that equality of terms is decidable) *)
 
-  Lemma fin_subst_comp sigma tau
+  Lemma is_fin_subst_comp sigma tau
     : (forall x y : Term.V L, {x = y} + {x <> y}) ->
       (forall x y : Term.F L, {x = y} + {x <> y}) ->
-      fin_subst sigma -> fin_subst tau -> fin_subst (comp_subst sigma tau).
+      is_fin_subst sigma -> is_fin_subst tau ->
+      is_fin_subst (comp_subst sigma tau).
   Proof.
     unfold fin_subst.
     intros decV decF fmS fmT.
@@ -243,17 +249,44 @@ Section subst.
     apply list_map_is_fin_mod; auto.
   Qed.
 
+  Definition fin_subst_comp
+    : (forall x y : Term.V L, {x = y} + {x <> y}) ->
+      (forall x y : Term.F L, {x = y} + {x <> y}) ->
+      fin_subst -> fin_subst -> fin_subst :=
+    fun decV decF sigma tau =>
+      let (s, sH) := sigma in
+      let (t, tH) := tau in
+      existT _ (comp_subst s t) (is_fin_subst_comp s t decV decF sH tH).
+
+  Lemma fin_subst_subst_comp
+        (decV : forall x y : Term.V L, {x = y} + {x <> y})
+        (decF : forall x y : Term.F L, {x = y} + {x <> y})
+        s t v
+  : fin_subst_subst (fin_subst_comp decV decF s t) v =
+    comp_subst (fin_subst_subst s) (fin_subst_subst t) v.
+  Proof.
+    destruct s, t; auto.
+  Qed.
+
   (** Finally, we show that restricting a finite substitution to
       variables satisfying some predicate doesn't stop it being
       finite. *)
 
-  Lemma fin_subst_restrict
+  Lemma is_fin_subst_restrict
         {s P} (decP : forall v : Term.V L, {P v} + {~ P v})
-    : fin_subst s -> fin_subst (restrict_map (varTerm L) P decP s).
+    : is_fin_subst s -> is_fin_subst (restrict_map (varTerm L) P decP s).
   Proof.
     unfold fin_subst.
     apply restrict_preserves_fin_mod.
   Qed.
+
+  Definition fin_subst_restrict
+             {P} (decP : forall v : Term.V L, {P v} + {~ P v})
+    : fin_subst -> fin_subst :=
+    fun sigma =>
+      let (s, sH) := sigma in
+      existT _ (restrict_map (varTerm L) P decP s)
+             (is_fin_subst_restrict decP sH).
 
   Lemma term_height_subst {s}
     : forall t, term_height t <= term_height (subst_endo s t).
@@ -287,3 +320,5 @@ Section subst.
   Qed.
 
 End subst.
+
+Hint Rewrite fin_subst_subst_comp : fin_subst.

@@ -20,46 +20,59 @@ Require Import Top.Terms.VecUtils.
  *)
 Section smg.
   Variable L : lType.
+  Notation V := (Term.V L).
+  Notation F := (Term.F L).
+  Hypothesis decV : forall v v' : V, {v = v'} + {v <> v'}.
 
-  Definition Subst := (Lmodule.V L -> Term L).
+  Definition is_left_factoring (rho sigma tau : fin_subst L) : Prop :=
+    forall v, comp_subst L (fin_subst_subst L rho)
+                         (fin_subst_subst L sigma) v =
+              fin_subst_subst L tau v.
 
-  Definition smg (sigma tau : Subst) : Prop :=
-    exists rho, forall v, comp_subst L rho sigma v = tau v.
+  Definition smg (sigma tau : fin_subst L) :=
+    exists rho, is_left_factoring rho sigma tau.
 
-  Lemma smg_refl {sigma : Subst} : smg sigma sigma.
+  Lemma smg_refl {sigma} : smg sigma sigma.
   Proof.
-    unfold smg; exists (varTerm L); intro v.
-    apply comp_subst_idl.
+    exists (existT _ (varTerm L) (fin_subst_varTerm L));
+      intro v; apply comp_subst_idl.
   Qed.
 
-  Lemma smg_trans {r s t : Subst} :
+  Lemma smg_trans
+        (decF : forall f f' : F, {f = f'} + {f <> f'})
+        {r s t} :
     smg r s -> smg s t -> smg r t.
   Proof.
     unfold smg.
     destruct 1 as [ rho_rs rsH ].
     destruct 1 as [ rho_st stH ].
-    exists (comp_subst L rho_st rho_rs).
-    intro v.
+    exists (fin_subst_comp L decV decF rho_st rho_rs).
+    destruct rho_st as [ urho_st rstH ].
+    destruct rho_rs as [ urho_rs rrsH ].
+    revert rsH stH; unfold is_left_factoring; simpl; intros rsH stH.
+    intro v; unfold fin_subst_comp; simpl.
     rewrite <- comp_subst_assoc.
-    assert (eqH : forall v, rho_st v = rho_st v); auto.
+    assert (eqH : forall v, urho_st v = urho_st v); auto.
     rewrite (comp_subst_ex L v eqH rsH).
-    rewrite stH.
-    exact eq_refl.
+    auto using stH.
   Qed.
 
-  Definition sequiv (sigma tau : Subst) : Prop :=
-    smg sigma tau /\ smg tau sigma.
+  Definition is_subst_equiv sigma tau pr : Prop :=
+    is_left_factoring (fst pr) sigma tau /\
+    is_left_factoring (snd pr) tau sigma.
 
-  Definition subst_ub (P : Subst -> Prop) (s : Subst) :=
-    forall t : Subst, P t -> smg t s.
+  Definition sequiv sigma tau := sig (is_subst_equiv sigma tau).
 
-  Definition subst_lb (P : Subst -> Prop) (s : Subst) :=
-    forall t : Subst, P t -> smg s t.
+  Definition subst_ub (P : fin_subst L -> Prop) (s : fin_subst L) :=
+    forall t : fin_subst L, P t -> exists r, is_left_factoring r t s.
 
-  Definition subst_sup (P : Subst -> Prop) (s : Subst) :=
+  Definition subst_lb (P : fin_subst L -> Prop) (s : fin_subst L) :=
+    forall t : fin_subst L, P t -> exists r, is_left_factoring r s t.
+
+  Definition subst_sup (P : fin_subst L -> Prop) (s : fin_subst L) :=
     subst_ub P s /\ subst_lb (subst_ub P) s.
 
-  Definition subst_inf (P : Subst -> Prop) (s : Subst) :=
+  Definition subst_inf (P : fin_subst L -> Prop) (s : fin_subst L) :=
     subst_lb P s /\ subst_ub (subst_lb P) s.
 
 End smg.
@@ -111,23 +124,34 @@ Section sequiv_means_perm_lt.
       image of [sigma'] than in the image of [sigma]. We'll argue by
       symmetry at the very end. *)
 
-  Variables sigma sigma' : Subst L.
-  Variables rho rho' : Subst L.
-  Hypothesis sigma'H : forall v, sigma' v = comp_subst L rho sigma v.
-  Hypothesis sigmaH : forall v, sigma v = comp_subst L rho' sigma' v.
-  Hypothesis finsigH : fin_subst L sigma.
-  Hypothesis finsig'H : fin_subst L sigma'.
-  Hypothesis finrhoH : fin_subst L rho.
   Hypothesis decV : forall v v' : V, {v = v'} + {v <> v'}.
+  Variables sigma sigma' rho rho' : fin_subst L.
 
-  Definition biv_card_list (s : Subst L) (finH : fin_subst L s)
-    : fp_card_list (bound_image_var L s) :=
-    dec_fp_card_list (finite_bound_in_image L s finH decV) decV.
+  Hypothesis sigma'H :
+    forall v, fin_subst_subst L sigma' v =
+              comp_subst L (fin_subst_subst L rho)
+                         (fin_subst_subst L sigma) v.
 
-  Definition biv_card (s : Subst L) (finH : fin_subst L s) : nat :=
-    fp_card (biv_card_list s finH).
+  Hypothesis sigmaH :
+    forall v, fin_subst_subst L sigma v =
+              comp_subst L (fin_subst_subst L rho')
+                         (fin_subst_subst L sigma') v.
 
-  Hypothesis cardleH : biv_card sigma finsigH <= biv_card sigma' finsig'H.
+  Definition biv_card_list (s : fin_subst L)
+    : fp_card_list (bound_image_var L (fin_subst_subst L s)) :=
+    dec_fp_card_list (finite_bound_in_image decV s) decV.
+
+  Definition biv_card (s : fin_subst L) : nat := fp_card (biv_card_list s).
+
+  Hypothesis cardleH : biv_card sigma <= biv_card sigma'.
+
+  (** Define local versions of the underlying substitutions from
+      sigma, sigma', rho, rho' to avoid all the fin_subst_subst
+      noise. *)
+  Local Definition s : Subst L := fin_subst_subst L sigma.
+  Local Definition s' : Subst L := fin_subst_subst L sigma'.
+  Local Definition r : Subst L := fin_subst_subst L rho.
+  Local Definition r' : Subst L := fin_subst_subst L rho'.
 
   (** We are going to define the permutation by splitting [V] into
       those variables that are free in the image of [sigma] and those
@@ -137,50 +161,50 @@ Section sequiv_means_perm_lt.
       variables and we define [vrho] to get at these variables. *)
 
   Lemma sigma_is_rho2_sigma v
-    : sigma v = comp_subst L (comp_subst L rho' rho) sigma v.
+    : s v = comp_subst L (comp_subst L r' r) s v.
   Proof.
     rewrite <- comp_subst_assoc.
     unfold comp_subst at 1; simpl.
     rewrite <- sigma'H, sigmaH; auto.
   Qed.
 
-  Definition is_sigma_fv (v : V) := termset_fv v (subst_im L sigma).
-  Definition is_sigma_bv (v : V) := is_bound_in_image L sigma v.
+  Definition is_sigma_fv (v : V) := termset_fv v (subst_im L s).
+  Definition is_sigma_bv (v : V) := is_bound_in_image L s v.
 
   Definition fv_proj (x : sig is_sigma_fv) : V := proj1_sig x.
   Definition bv_proj (x : sig is_sigma_bv) : V := proj1_sig x.
 
   Lemma rho2_fixes_im_sigma v
-    : is_sigma_fv v -> comp_subst L rho' rho v = varTerm L v.
+    : is_sigma_fv v -> comp_subst L r' r v = varTerm L v.
   Proof.
     apply (@comp_subst_determines_fvs
-             L sigma (comp_subst L rho' rho) (varTerm L)); clear v.
+             L s (comp_subst L r' r) (varTerm L)); clear v.
     intro v; rewrite <- sigma_is_rho2_sigma, comp_subst_idl; auto.
   Qed.
 
   Lemma rho_im_sigma_has_height_0 v
-    : is_sigma_fv v -> term_height (rho v) = 0.
+    : is_sigma_fv v -> term_height (r v) = 0.
   Proof.
     intro fvH.
     apply PeanoNat.Nat.le_0_r.
-    apply (PeanoNat.Nat.le_trans _ _ _ (@term_height_comp_subst L rho' rho v)).
+    apply (PeanoNat.Nat.le_trans _ _ _ (@term_height_comp_subst L r' r v)).
     rewrite (rho2_fixes_im_sigma v fvH); auto.
   Qed.
 
   Local Definition vrho (x : sig is_sigma_fv) : V :=
     match x with
     | exist _ v H =>
-      unpack_height_0_term (rho v) (rho_im_sigma_has_height_0 v H)
+      unpack_height_0_term (r v) (rho_im_sigma_has_height_0 v H)
     end.
 
   Lemma vrho_correct v H
-    : varTerm L (vrho (exist _ v H)) = rho v.
+    : varTerm L (vrho (exist _ v H)) = r v.
   Proof.
     apply varTerm_unpack_height_0_term.
   Qed.
 
   Lemma vrho_is_fv_for_sigma' x
-    : termset_fv (vrho x) (subst_im L sigma').
+    : termset_fv (vrho x) (subst_im L s').
   Proof.
     destruct x as [ v fvH ]; destruct fvH as [ t [ imH fvH' ] ].
     generalize (ex_intro (fun t0 => _ /\ term_fv v t0) _
@@ -189,7 +213,7 @@ Section sequiv_means_perm_lt.
     rewrite tH in fvH'; clear t tH.
     rewrite termset_fv_subst_im; exists w.
     rewrite sigma'H.
-    apply (term_fv_in_subst_endo rho v _ (sigma w) fvH').
+    apply (term_fv_in_subst_endo r v _ (s w) fvH').
     rewrite <- (vrho_correct v fvH).
     simpl; auto.
   Qed.
@@ -221,13 +245,16 @@ Section sequiv_means_perm_lt.
        All we need in order to use [finite_left_inverse] is to
        construct a partial right inverse to this inclusion. *)
 
-  Definition dec_sigma_fv (v : V)
-    : {is_sigma_fv v} + {is_sigma_bv v} :=
-    dec_free_in_image L sigma decV _ (proj2_sig finsigH) v.
+  Lemma dec_sigma_fv (v : V) : {is_sigma_fv v} + {is_sigma_bv v}.
+  Proof.
+    unfold is_sigma_fv, is_sigma_bv, s.
+    destruct sigma as [ us finH ]; simpl.
+    apply (dec_free_in_image L us decV _ (proj2_sig finH) v).
+  Qed.
 
   Lemma mod_elt_rho_to_vrho v
-        (neH : mod_elt (varTerm L) rho v)
-        (fvH : termset_fv v (subst_im L sigma))
+        (neH : mod_elt (varTerm L) r v)
+        (fvH : termset_fv v (subst_im L s))
     : mod_elt fv_proj vrho (exist _ v fvH).
   Proof.
     unfold mod_elt, fv_proj, proj1_sig.
@@ -243,9 +270,9 @@ Section sequiv_means_perm_lt.
   Qed.
 
   Lemma mod_elt_vrho_to_rho v
-        (fvH : termset_fv v (subst_im L sigma))
+        (fvH : termset_fv v (subst_im L s))
         (neH : mod_elt fv_proj vrho (exist _ v fvH))
-    : mod_elt (varTerm L) rho v.
+    : mod_elt (varTerm L) r v.
   Proof.
     unfold mod_elt, fv_proj, proj1_sig.
     intro eqH; contradiction neH.
@@ -254,14 +281,14 @@ Section sequiv_means_perm_lt.
   Qed.
 
   Local Definition vrho_inj_top
-    : mod_dom fv_proj vrho -> mod_dom (varTerm L) rho :=
+    : mod_dom fv_proj vrho -> mod_dom (varTerm L) r :=
     fun x =>
       match x with
       | exist _ (exist _ v fvH) neH => exist _ v (mod_elt_vrho_to_rho v fvH neH)
       end.
 
   Local Definition vrho_uninj_top
-    : mod_dom (varTerm L) rho -> option (mod_dom fv_proj vrho) :=
+    : mod_dom (varTerm L) r -> option (mod_dom fv_proj vrho) :=
     fun x =>
       match x with
       | exist _ v neH =>
@@ -283,11 +310,11 @@ Section sequiv_means_perm_lt.
                                     (fv_proj (md_elt x))).
   Proof.
     eapply (@finite_left_inverse (mod_dom fv_proj vrho)
-                                 (mod_dom (varTerm L) rho)
+                                 (mod_dom (varTerm L) r)
                                  vrho_uninj_top
                                  V V vrho_uninj_bot
                                  (fun x => proj1_sig (md_elt x)) md_elt
-                                 _ vrho_inj_top id _ _ finrhoH).
+                                 _ vrho_inj_top id _ _ _).
     Unshelve.
     - intro x; destruct x as [ v neH ].
       unfold vrho_uninj_top, vrho_uninj_bot; simpl.
@@ -296,6 +323,7 @@ Section sequiv_means_perm_lt.
     - intro x; destruct x as [ x neH ]; destruct x as [ v fvH ]; simpl.
       unfold vrho_uninj_bot, id.
       destruct (dec_sigma_fv v) as [ | bdH ]; [ auto | contradiction bdH ].
+    - unfold md_elt, r; destruct rho; auto.
   Qed.
 
   Lemma vrho_injective x x'
@@ -311,53 +339,18 @@ Section sequiv_means_perm_lt.
   Qed.
 
   Local Definition bound_inj
-    : nat_map (bound_image_var L sigma) (bound_image_var L sigma') :=
+    : nat_map (bound_image_var L s) (bound_image_var L s') :=
     inj_from_smaller decV
-                     (biv_card_list sigma finsigH)
-                     (biv_card_list sigma' finsig'H) cardleH id.
+                     (biv_card_list sigma) (biv_card_list sigma')
+                     cardleH id.
 
   Local Lemma bound_inj_is_inj : inj_nat_map bound_inj.
   Proof.
     eauto using inj_from_smaller_is_inj.
   Qed.
 
-  Definition split_rho : V -> V :=
+  Definition usplit_rho : V -> V :=
     split_map _ _ _ dec_sigma_fv vrho (fun x => nm_bot bound_inj (proj1_sig x)).
-
-  Lemma split_rho_inj v v' : split_rho v = split_rho v' -> v = v'.
-  Proof.
-    revert v v'; apply inj_split.
-    - eauto using vrho_injective.
-    - intros x x'.
-      assert (bound_image_var _ _ x = proj1_sig x) as projH; auto.
-      assert (bound_image_var _ _ x' = proj1_sig x') as projH'; auto.
-      rewrite <- projH, <- projH'.
-      apply bound_inj_is_inj.
-    - intros x x'.
-      assert (bound_image_var _ _ x' = proj1_sig x') as projH'; auto.
-      rewrite <- projH', <- nat_map_nat; clear projH'.
-      unfold bound_image_var.
-      intro eqH.
-      apply (proj2_sig (nm_top bound_inj x')).
-      unfold bound_image_var; rewrite <- eqH.
-      apply vrho_is_fv_for_sigma'.
-  Qed.
-
-  Lemma split_rho_on_free v (freeH : is_sigma_fv v)
-    : split_rho v = vrho (exist _ v freeH).
-  Proof.
-    unfold split_rho, split_map.
-    destruct dec_sigma_fv; [ apply vrho_irrel | contradiction ].
-  Qed.
-
-  Lemma split_rho_sigma v
-    : comp_subst L (var_subst_subst L split_rho) sigma v = sigma' v.
-  Proof.
-    rewrite sigma'H.
-    revert v; apply comp_subst_determined_by_fvs; intro v.
-    unfold var_subst_subst, Basics.compose, split_rho, split_map.
-    destruct dec_sigma_fv; [ auto using vrho_correct | contradiction ].
-  Qed.
 
   Definition bound_inj_bot (x : sig is_sigma_bv) : V :=
     nm_bot bound_inj (proj1_sig x).
@@ -368,7 +361,7 @@ Section sequiv_means_perm_lt.
     auto.
   Qed.
 
-  Definition bound_inj_nm_top (x : bound_in_image L sigma)
+  Definition bound_inj_nm_top (x : bound_in_image L s)
     : option (mod_dom bv_proj bound_inj_bot) :=
     match decV (bound_inj_bot x) (proj1_sig x) with
     | left eqH => None
@@ -389,10 +382,10 @@ Section sequiv_means_perm_lt.
     : FiniteProj (fun (x : mod_dom bv_proj bound_inj_bot) =>
                     (bv_proj (md_elt x))).
   Proof.
-    destruct (proj2_sig (biv_card_list sigma finsigH)) as [ _ fullH ].
+    destruct (proj2_sig (biv_card_list sigma)) as [ _ fullH ].
     apply (finite_surj_option (fun x => bv_proj (md_elt x))
                               bound_inj_nm_top bound_inj_nm_bot
-                              (exist _ (proj1_sig (biv_card_list sigma finsigH))
+                              (exist _ (proj1_sig (biv_card_list sigma))
                                      fullH)).
     - unfold bound_inj_nm_top, bound_inj_nm_bot.
       intro x; destruct x as [ v bdH ]; simpl.
@@ -411,97 +404,157 @@ Section sequiv_means_perm_lt.
         [ contradiction | auto ].
   Qed.
 
-  Lemma var_subst_split_rho
-    : var_subst split_rho.
+  Lemma is_var_subst_usplit_rho
+    : is_var_subst usplit_rho.
   Proof.
     apply (fin_split V V is_sigma_fv);
       auto using vrho_irrel, vrho_finite, bound_inj_finite.
   Qed.
 
-  Definition split_rho_inv : V -> V :=
-    inj_subst_inv var_subst_split_rho split_rho_inj decV.
+  Definition split_rho : var_subst V :=
+    existT _ usplit_rho is_var_subst_usplit_rho.
+
+  Lemma split_rho_inj : var_subst_inj split_rho.
+  Proof.
+    unfold split_rho, var_subst_inj; apply inj_split.
+    - eauto using vrho_injective.
+    - intros x x'.
+      assert (bound_image_var _ _ x = proj1_sig x) as projH; auto.
+      assert (bound_image_var _ _ x' = proj1_sig x') as projH'; auto.
+      rewrite <- projH, <- projH'.
+      apply bound_inj_is_inj.
+    - intros x x'.
+      assert (bound_image_var _ _ x' = proj1_sig x') as projH'; auto.
+      rewrite <- projH', <- nat_map_nat; clear projH'.
+      unfold bound_image_var.
+      intro eqH.
+      apply (proj2_sig (nm_top bound_inj x')).
+      unfold bound_image_var; rewrite <- eqH.
+      apply vrho_is_fv_for_sigma'.
+  Qed.
+
+  Lemma usplit_rho_on_free v (freeH : is_sigma_fv v)
+    : usplit_rho v = vrho (exist _ v freeH).
+  Proof.
+    unfold usplit_rho, split_map.
+    destruct dec_sigma_fv; [ apply vrho_irrel | contradiction ].
+  Qed.
+
+  Lemma split_rho_sigma v
+    : comp_subst L
+                 (var_subst_subst L split_rho)
+                 (fin_subst_subst L sigma) v =
+      fin_subst_subst L sigma' v.
+  Proof.
+    fold s; fold s'.
+    rewrite sigma'H.
+    revert v; apply comp_subst_determined_by_fvs; intro v.
+    unfold var_subst_subst, Basics.compose, split_rho, usplit_rho, split_map.
+    destruct dec_sigma_fv; [ auto using vrho_correct | contradiction ].
+  Qed.
+
+  Definition split_rho_inv : var_subst V :=
+    inj_subst_inv split_rho split_rho_inj decV.
 
   Lemma split_rho_inv_sigma' v
-    : comp_subst L (var_subst_subst L split_rho_inv) sigma' v = sigma v.
+    : comp_subst L
+                 (var_subst_subst L split_rho_inv)
+                 (fin_subst_subst L sigma') v =
+      fin_subst_subst L sigma v.
   Proof.
+    fold s; fold s'.
     unfold comp_subst;
       rewrite sigma'H;
+      fold r s;
       fold (comp_subst L (var_subst_subst L split_rho_inv)
-                       (comp_subst L rho sigma) v).
+                       (comp_subst L r s) v).
     rewrite comp_subst_assoc.
-    rewrite <- (comp_subst_idl _ (sigma := sigma)).
+    rewrite <- (comp_subst_idl _ (sigma := s)).
     apply (comp_subst_determined_by_fvs); clear v; intros v fvH.
     unfold comp_subst.
-    assert (rho v = varTerm L (split_rho v)) as rhoH.
-    - rewrite (split_rho_on_free _ fvH), vrho_correct; auto.
+    assert (r v = varTerm L (usplit_rho v)) as rhoH.
+    - rewrite (usplit_rho_on_free _ fvH), vrho_correct; auto.
     - rewrite rhoH; simpl; unfold var_subst_subst, Basics.compose; apply f_equal.
-      destruct (ext_inverse_inj_subst var_subst_split_rho split_rho_inj decV).
+      destruct (ext_inverse_inj_subst split_rho split_rho_inj decV).
       auto.
   Qed.
 End sequiv_means_perm_lt.
+
 Section sequiv_means_perm.
   Variable L : lType.
   Notation V := (Term.V L).
+  Notation F := (Term.F L).
 
-  Variables sigma sigma' : Subst L.
-  Hypothesis finsigH : fin_subst L sigma.
-  Hypothesis finsig'H : fin_subst L sigma'.
-  Variables rho rho' : Subst L.
-  Hypothesis sigma'H : forall v, sigma' v = comp_subst L rho sigma v.
-  Hypothesis sigmaH : forall v, sigma v = comp_subst L rho' sigma' v.
-  Hypothesis finrhoH : fin_subst L rho.
-  Hypothesis finrho'H : fin_subst L rho'.
   Hypothesis decV : forall v v' : V, {v = v'} + {v <> v'}.
+  Hypothesis decF : forall f f' : F, {f = f'} + {f <> f'}.
 
-  Local Definition tau : V -> V :=
-    match le_ge_dec (biv_card L decV sigma finsigH) (biv_card L decV sigma' finsig'H) with
-    | left leH => split_rho L sigma sigma' rho rho'
-                            sigma'H sigmaH finsigH finsig'H decV leH
-    | right geH => split_rho_inv L sigma' sigma rho' rho sigmaH
-                                 sigma'H finsig'H finsigH finrho'H decV geH
+  Variables sigma sigma' : fin_subst L.
+  Hypothesis equivH : sequiv L sigma sigma'.
+
+  Local Definition rho : fin_subst L := fst (proj1_sig equivH).
+  Local Definition rho' : fin_subst L := snd (proj1_sig equivH).
+
+  Lemma sigma'H
+    : forall v, fin_subst_subst L sigma' v =
+                comp_subst L (fin_subst_subst L rho)
+                           (fin_subst_subst L sigma) v.
+  Proof.
+    destruct (proj2_sig equivH); auto.
+  Qed.
+
+  Lemma sigmaH
+    : forall v, fin_subst_subst L sigma v =
+                comp_subst L (fin_subst_subst L rho')
+                           (fin_subst_subst L sigma') v.
+  Proof.
+    destruct (proj2_sig equivH); auto.
+  Qed.
+
+  Local Definition tau : var_subst V :=
+    match le_ge_dec (biv_card L decV sigma) (biv_card L decV sigma') with
+    | left leH => split_rho L decV sigma sigma' rho rho'
+                            sigma'H sigmaH leH
+    | right geH => split_rho_inv L decV sigma' sigma rho' rho
+                                 sigmaH sigma'H geH
     end.
 
   Lemma tau_sigma v
-    : comp_subst L (var_subst_subst L tau) sigma v = sigma' v.
+    : fin_subst_subst L
+                      (fin_subst_comp L decV decF
+                                      (var_subst_to_fin_subst L decV decF tau)
+                                      sigma)
+                      v =
+      fin_subst_subst L sigma' v.
   Proof.
+    autorewrite with fin_subst var_subst.
     unfold tau; destruct (le_ge_dec _ _);
       auto using split_rho_sigma, split_rho_inv_sigma'.
   Qed.
 
-  Local Definition tau' : V -> V :=
-    match le_ge_dec (biv_card L decV sigma finsigH) (biv_card L decV sigma' finsig'H) with
-    | left leH => split_rho_inv L sigma sigma' rho rho' sigma'H
-                                sigmaH finsigH finsig'H finrhoH decV leH
-    | right geH => split_rho L sigma' sigma rho' rho
-                             sigmaH sigma'H finsig'H finsigH decV geH
+  Local Definition tau' : var_subst V :=
+    match le_ge_dec (biv_card L decV sigma) (biv_card L decV sigma') with
+    | left leH => split_rho_inv L decV sigma sigma' rho rho' sigma'H sigmaH leH
+    | right geH => split_rho L decV sigma' sigma rho' rho sigmaH sigma'H geH
     end.
 
   Lemma tau'_sigma' v
-    : comp_subst L (var_subst_subst L tau') sigma' v = sigma v.
+    : fin_subst_subst L
+                      (fin_subst_comp L decV decF
+                                      (var_subst_to_fin_subst L decV decF tau')
+                                      sigma')
+                      v =
+      fin_subst_subst L sigma v.
   Proof.
+    autorewrite with fin_subst var_subst.
     unfold tau'; destruct (le_ge_dec _ _);
       auto using split_rho_sigma, split_rho_inv_sigma'.
   Qed.
 
-  Lemma ext_inverse_tau : ext_inverse tau tau'.
+  Lemma ext_inverse_tau : ext_inverse (projT1 tau) (projT1 tau').
   Proof.
     unfold tau, tau'; destruct (le_ge_dec _ _);
       [ | apply ext_inverse_sym ];
       apply ext_inverse_inj_subst.
-  Qed.
-
-  Lemma var_subst_tau : var_subst tau.
-  Proof.
-    unfold tau; destruct (le_ge_dec _ _).
-    - auto using var_subst_split_rho, finrhoH.
-    - apply var_subst_inj_subst_inv.
-  Qed.
-
-  Lemma var_subst_tau' : var_subst tau'.
-  Proof.
-    unfold tau'; destruct (le_ge_dec _ _).
-    - apply var_subst_inj_subst_inv.
-    - auto using var_subst_split_rho, finrhoH.
   Qed.
 
 End sequiv_means_perm.

@@ -28,6 +28,7 @@ Require Import Lists.List.
 Inductive V := Vx | Vy | Vz.
 Inductive F := Ff.
 Definition a (f : F) : nat := 2.
+Definition L := @LType V F a.
 
 (**
 
@@ -41,12 +42,47 @@ Proof.
   intro v; destruct v; auto with datatypes.
 Qed.
 
-Lemma decV : forall v v' : V, {v = v'} + {v <> v'}.
+Lemma decV : forall v v' : Term.V L, {v = v'} + {v <> v'}.
 Proof.
   intros v v'; destruct v, v'; (auto || (right; discriminate)).
 Qed.
 
-Definition L := @LType V F a.
+Lemma decF : forall f f' : Term.F L, {f = f'} + {f <> f'}.
+Proof.
+  intros f f'; destruct f, f'; left; auto.
+Qed.
+
+(** Of course, this also means that every substitution is finite *)
+
+Definition maybe_lift_dom_top (u : Subst L) (v : V)
+  : option (mod_dom (varTerm L) u) :=
+  match decTerm decV decF (u v) (varTerm L v) with
+  | left eqH => None
+  | right neH => Some (exist _ v neH)
+  end.
+
+Definition maybe_lift_dom_bot (u : Subst L) (v : V) : option V :=
+  match decTerm decV decF (u v) (varTerm L v) with
+  | left eqH => None
+  | right neH => Some v
+  end.
+
+Lemma all_substs_finite (u : Subst L) : is_fin_subst L u.
+Proof.
+  apply (@finite_surj_option V (mod_dom (varTerm L) u) V V
+                             id md_elt
+                             (maybe_lift_dom_top u)
+                             (maybe_lift_dom_bot u)).
+  - exists (Vx :: Vy :: Vz :: nil); intro. apply in_map, fullV.
+  - unfold maybe_lift_dom_top, maybe_lift_dom_bot.
+    intro; destruct (decTerm _ _ _ _); auto.
+  - intro d; exists (proj1_sig d).
+    unfold maybe_lift_dom_bot.
+    destruct (decTerm _ _ _ _); [ contradiction (proj2_sig d) | auto ].
+Qed.
+
+Definition mk_fin_subst : Subst L -> fin_subst L :=
+  fun u => existT _ u (all_substs_finite u).
 
 (** Constructing terms with vectors is a little cumbersome. [mkF] is a
     helper for applying the binary operation [Ff]. As you'd hope,
@@ -95,9 +131,11 @@ Qed.
     Eder considers two specially chosen substitutions: [sigma] and
     [tau]. *)
 
-Definition sigma : Subst L := fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
+Definition usig : Subst L := fun v => mkF (mkV Vx) (mkF (mkV Vy) (mkV Vz)).
+Definition utau : Subst L := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
 
-Definition tau : Subst L := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
+Definition sigma : fin_subst L := mk_fin_subst usig.
+Definition tau   : fin_subst L := mk_fin_subst utau.
 
 (**
 
@@ -112,7 +150,7 @@ Definition tau : Subst L := fun v => mkF (mkF (mkV Vx) (mkV Vy)) (mkV Vz).
 
 *)
 
-Definition in_st (s : Subst L) : Prop := s = sigma \/ s = tau.
+Definition in_st (s : fin_subst L) : Prop := s = sigma \/ s = tau.
 
 Lemma ub_st_elim {rho}
   : subst_ub L in_st rho ->
@@ -126,9 +164,8 @@ Lemma ub_st_intro {rho}
     smg L tau rho ->
     subst_ub L in_st rho.
 Proof.
-  intros.
-  unfold subst_ub, in_st; fold smg.
-  intro t; destruct 1; congruence.
+  unfold smg, subst_ub, in_st; intros Hs Ht t.
+  destruct 1 as [ -> | -> ]; auto.
 Qed.
 
 (** * The [smg] relation
@@ -143,7 +180,7 @@ Qed.
 Section sigma_decomp.
   Variable v : V.
   Variable sigma' rho : Subst L.
-  Hypothesis decompH : comp_subst L sigma' sigma v = rho v.
+  Hypothesis decompH : comp_subst L sigma' usig v = rho v.
 
   Local Definition s12 := sigma' Vx.
   Local Definition s3 := sigma' Vy.
@@ -161,7 +198,7 @@ End sigma_decomp.
 Section tau_decomp.
   Variable v : V.
   Variable tau' rho : Subst L.
-  Hypothesis decompH : comp_subst L tau' tau v = rho v.
+  Hypothesis decompH : comp_subst L tau' utau v = rho v.
 
   Local Definition s1 := tau' Vx.
   Local Definition s2 := tau' Vy.
@@ -200,8 +237,8 @@ Definition quad_term {A : Type} {f : A -> Term L} (q : Quad f) : Term L :=
     actually write down its form explicitly. *)
 
 Lemma subst_is_quad_term {v sigma' tau' rho}
-  : comp_subst L sigma' sigma v = rho v ->
-    comp_subst L tau' tau v = rho v ->
+  : comp_subst L sigma' usig v = rho v ->
+    comp_subst L tau' utau v = rho v ->
     rho v = mkF (mkF (s1 tau') (s2 tau')) (mkF (s3 sigma') (s4 sigma')).
 Proof.
   intros sigmaH tauH.
@@ -218,13 +255,15 @@ Qed.
 
 Lemma form_if_ub {rho}
   : subst_ub L in_st rho ->
-    exists q : Quad id, forall v, rho v = quad_term q.
+    exists q : Quad id, forall v, fin_subst_subst L rho v = quad_term q.
 Proof.
   intro ubH.
   destruct (ub_st_elim ubH) as [ smgsH smgtH ].
   destruct smgsH as [ sigma' sigmaH ].
   destruct smgtH as [ tau' tauH ].
-  exists (mkQuad _ _ (s1 tau') (s2 tau') (s3 sigma') (s4 sigma')).
+  set (ut := fin_subst_subst L tau').
+  set (us := fin_subst_subst L sigma').
+  exists (mkQuad _ _ (s1 ut) (s2 ut) (s3 us) (s4 us)).
   intro v; unfold quad_term.
   apply subst_is_quad_term; auto.
 Qed.
@@ -237,11 +276,13 @@ Definition vfun {A : Type} (ax ay az : A) (v : V) : A :=
   match v with Vx => ax | Vy => ay | Vz => az end.
 
 Lemma ub_if_form {q : Quad id} rho
-  : (forall v, rho v = quad_term q) -> Generality.subst_ub L in_st rho.
+  : (forall v, fin_subst_subst L rho v = quad_term q) ->
+    Generality.subst_ub L in_st rho.
 Proof.
   destruct q as [ t0 t1 t2 t3 ].
   intros formH; apply ub_st_intro;
-    [ exists (vfun (mkF t0 t1) t2 t3) | exists (vfun t0 t1 (mkF t2 t3)) ];
+    [ exists (mk_fin_subst (vfun (mkF t0 t1) t2 t3))
+    | exists (mk_fin_subst (vfun t0 t1 (mkF t2 t3))) ];
     intro v; destruct v; auto.
 Qed.
 
@@ -266,8 +307,8 @@ Qed.
 *)
 
 Lemma var_quad_is_ub (v0 v1 v2 v3 : V)
-  : Generality.subst_ub L in_st
-                        (fun v => (quad_term (mkQuad _ mkV v0 v1 v2 v3))).
+  : subst_ub L in_st
+             (mk_fin_subst (fun v => (quad_term (mkQuad _ mkV v0 v1 v2 v3)))).
 Proof.
   set (q := mkQuad _ id (mkV v0) (mkV v1) (mkV v2) (mkV v3)).
   apply (@ub_if_form q).
@@ -276,7 +317,8 @@ Proof.
 Qed.
 
 Definition cvquad (v : V) : Quad mkV := mkQuad _ _ v v v v.
-Definition cvquad_subst (v : V) : Subst L := fun v' => quad_term (cvquad v).
+Definition cvquad_subst (v : V) : fin_subst L :=
+  mk_fin_subst (fun v' => quad_term (cvquad v)).
 
 Lemma cvquad_is_ub (v : V) : Generality.subst_ub L in_st (cvquad_subst v).
 Proof.
@@ -284,7 +326,7 @@ Proof.
 Qed.
 
 Lemma height_cvquad_subst_v {v v' : V}
-  : term_height (cvquad_subst v v') = 2.
+  : term_height (fin_subst_subst L (cvquad_subst v) v') = 2.
 Proof.
   apply eq_refl.
 Qed.
@@ -295,7 +337,8 @@ Proof.
 Qed.
 
 Lemma height_cvquad_subst_endo {v : V} {t : Term L}
-  : term_height (subst_endo L (cvquad_subst v) t) = 2 + term_height t.
+  : term_height (subst_endo L (fin_subst_subst L (cvquad_subst v)) t) =
+    2 + term_height t.
 Proof.
   revert t; apply Term_ind'; auto using height_cvquad_subst_v.
   intros f ts IH.
@@ -367,7 +410,7 @@ Qed.
 
 Lemma comp_subst_quad_to_var {s0 s1 : Subst L} {v v' : V} {tq : Quad id}
   : s0 v' = quad_term tq ->
-    comp_subst L s1 s0 v' = cvquad_subst v v' ->
+    comp_subst L s1 s0 v' = fin_subst_subst L (cvquad_subst v) v' ->
     exists vq : Quad mkV, s0 v' = quad_term vq.
 Proof.
   intros tqH eqH.
@@ -381,7 +424,7 @@ Qed.
 
 Lemma form_if_sup {rho}
   : Generality.subst_sup L in_st rho ->
-    exists q : Quad mkV, forall v, rho v = quad_term q.
+    exists q : Quad mkV, forall v, fin_subst_subst L rho v = quad_term q.
 Proof.
   destruct 1 as [ ubH lbH ].
   destruct (form_if_ub ubH) as [ tq tqH ]; clear ubH.
@@ -407,11 +450,12 @@ Qed.
 *)
 
 Section distinct.
-  Variable   rho     : Subst L.
+  Variable   rho     : fin_subst L.
   Hypothesis sup_rho : Generality.subst_sup L in_st rho.
 
   Variables  v0 v1 v2 v3 : V.
-  Hypothesis rho_q : forall v, rho v = quad_term (mkQuad _ mkV v0 v1 v2 v3).
+  Hypothesis rho_q
+    : forall v, fin_subst_subst L rho v = quad_term (mkQuad _ mkV v0 v1 v2 v3).
 
   Lemma rho_for_vars (vv0 vv1 vv2 vv3 : V)
     : exists rho',
@@ -422,7 +466,7 @@ Section distinct.
   Proof.
     destruct sup_rho as [ _ lbH ].
     destruct (lbH _ (var_quad_is_ub vv0 vv1 vv2 vv3)) as [ rho' rho'H ]; clear lbH.
-    exists rho'.
+    exists (fin_subst_subst L rho').
     specialize (rho_q Vx); simpl in rho_q.
     specialize (rho'H Vx); unfold comp_subst, compose in rho'H; simpl in rho'H.
     rewrite rho_q in rho'H; simpl in rho'H.

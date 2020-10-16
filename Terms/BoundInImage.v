@@ -36,13 +36,13 @@ Require Import Top.Terms.VecUtils.
 
 *)
 
-Section fin_subst_bound_vars.
+Section subst_bound_vars.
   Variable L : lType.
-  Variable sigma : Subst L.
-  Hypothesis sigma_finiteH : fin_subst L sigma.
+
+  Variable usigma : Subst L.
 
   Definition is_bound_in_image (v : Term.V L) : Prop :=
-    ~ termset_fv v (subst_im L sigma).
+    ~ termset_fv v (subst_im L usigma).
 
   Definition bound_in_image : Type := sig is_bound_in_image.
 
@@ -70,7 +70,7 @@ Section fin_subst_bound_vars.
     : bool :=
     match vs with
     | nil => true
-    | cons w vs' => andb (negb (check_term_fv decV v (sigma w)))
+    | cons w vs' => andb (negb (check_term_fv decV v (usigma w)))
                          (check_bound_in_image_lst decV v vs')
     end.
 
@@ -78,7 +78,7 @@ Section fin_subst_bound_vars.
              (decV : forall v w : Term.V L, {v = w} + {v <> w})
              (vs : list (Term.V L)) (v : Term.V L)
     : bool :=
-    andb (if dec_mod_elt_varTerm decV sigma v then true else false)
+    andb (if dec_mod_elt_varTerm decV usigma v then true else false)
          (check_bound_in_image_lst decV v vs).
 
   (**
@@ -94,27 +94,27 @@ Section fin_subst_bound_vars.
   Lemma free_in_image_iff_dom_elt_hits_it
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         v
-    : termset_fv v (subst_im L sigma) <->
-      (sigma v = varTerm L v \/
-       (exists w, mod_elt (varTerm L) sigma w /\
-                  term_fv v (sigma w))).
+    : termset_fv v (subst_im L usigma) <->
+      (usigma v = varTerm L v \/
+       (exists w, mod_elt (varTerm L) usigma w /\
+                  term_fv v (usigma w))).
   Proof.
     split.
     - destruct 1 as [ t [ imH fvH ] ].
       destruct imH as [ w twH ].
       rewrite twH in fvH; clear twH t.
-      destruct (dec_mod_elt_varTerm decV sigma v) as [ eltH | ].
+      destruct (dec_mod_elt_varTerm decV usigma v) as [ eltH | ].
       + right; exists w; split; auto.
-        destruct (dec_mod_elt_varTerm decV sigma w) as [ | eqwH ]; auto.
+        destruct (dec_mod_elt_varTerm decV usigma w) as [ | eqwH ]; auto.
         rewrite eqwH in fvH.
         simpl in fvH; rewrite <- fvH; auto.
       + left; auto.
     - destruct 1 as [ fixedH | [ w [ eltH fvH ] ] ].
-      + exists (sigma v).
+      + exists (usigma v).
         split.
         * exists v; auto.
         * rewrite fixedH; simpl; auto.
-      + exists (sigma w); split; auto.
+      + exists (usigma w); split; auto.
         exists w; auto.
   Qed.
 
@@ -125,7 +125,7 @@ Section fin_subst_bound_vars.
   Lemma check_bound_in_image_lst_false_intro
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         (v w : Term.V L)
-        (freeH : term_fv v (sigma w))
+        (freeH : term_fv v (usigma w))
         (vs : list (Term.V L))
     : In w vs -> check_bound_in_image_lst decV v vs = false.
   Proof.
@@ -134,7 +134,7 @@ Section fin_subst_bound_vars.
     - rewrite <- uwH in freeH.
       apply Bool.andb_false_intro1.
       rewrite Bool.negb_false_iff.
-      rewrite <- (check_term_fv_correct decV v (sigma u)).
+      rewrite <- (check_term_fv_correct decV v (usigma u)).
       auto.
     - specialize (IH inH); clear inH.
       simpl; apply Bool.andb_false_intro2; auto.
@@ -145,14 +145,14 @@ Section fin_subst_bound_vars.
         (v : Term.V L)
         (vs : list (Term.V L))
     : check_bound_in_image_lst decV v vs = false ->
-      exists w, In w vs /\ term_fv v (sigma w).
+      exists w, In w vs /\ term_fv v (usigma w).
   Proof.
     induction vs as [ | u vs IH ].
     - intro H; contradiction (Bool.diff_true_false H).
     - intro bd_falseH; simpl in bd_falseH.
       case (Bool.andb_false_elim _ _ bd_falseH); clear bd_falseH.
       + rewrite Bool.negb_false_iff.
-        rewrite <- (check_term_fv_correct decV v (sigma u)).
+        rewrite <- (check_term_fv_correct decV v (usigma u)).
         eauto with datatypes.
       + intro H; destruct (IH H) as [ w [ inH fvH ] ].
         eauto with datatypes.
@@ -176,16 +176,16 @@ Section fin_subst_bound_vars.
 
   Lemma check_free_in_image_correct
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
-        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (dom_elts : list (mod_dom (varTerm L) usigma))
         (fullH : FullProj md_elt dom_elts)
         (v : Term.V L)
-    : termset_fv v (subst_im L sigma) <->
+    : termset_fv v (subst_im L usigma) <->
       is_true (check_free_in_image decV (map md_elt dom_elts) v).
   Proof.
     unfold check_free_in_image, is_true; rewrite Bool.negb_true_iff.
     rewrite (free_in_image_iff_dom_elt_hits_it decV v); split.
     - destruct 1 as [ fixedH | exH ]; unfold check_bound_in_image.
-      + case (dec_mod_elt_varTerm decV sigma v); [ contradiction | auto ].
+      + case (dec_mod_elt_varTerm decV usigma v); [ contradiction | auto ].
       + apply Bool.andb_false_intro2.
         destruct exH as [ w [ eltwH fvH ] ].
         assert (In w (map md_elt dom_elts)) as inH;
@@ -193,7 +193,7 @@ Section fin_subst_bound_vars.
         apply (check_bound_in_image_lst_false_intro decV v w fvH _ inH).
     - intro check_falseH.
       case (Bool.andb_false_elim _ _ check_falseH); simpl; clear check_falseH.
-      + destruct (dec_mod_elt_varTerm decV sigma v); auto.
+      + destruct (dec_mod_elt_varTerm decV usigma v); auto.
         intro tfH; contradiction Bool.diff_true_false.
       + intro check_lstH.
         destruct (check_bound_in_image_lst_false_elim _ _ _ check_lstH)
@@ -211,7 +211,7 @@ Section fin_subst_bound_vars.
 
   Lemma check_bound_in_image_correct
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
-        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (dom_elts : list (mod_dom (varTerm L) usigma))
         (fullH : FullProj md_elt dom_elts)
         (v : Term.V L)
     : is_bound_in_image v <->
@@ -229,18 +229,18 @@ Section fin_subst_bound_vars.
       below. *)
   Definition dec_free_in_image
              (decV : forall v w : Term.V L, {v = w} + {v <> w})
-             (dom_elts : list (mod_dom (varTerm L) sigma))
+             (dom_elts : list (mod_dom (varTerm L) usigma))
              (fullH : FullProj md_elt dom_elts)
              (v : Term.V L)
-    : {termset_fv v (subst_im L sigma)} + {is_bound_in_image v} :=
+    : {termset_fv v (subst_im L usigma)} + {is_bound_in_image v} :=
     (dec_proc_to_sumbool (check_free_in_image_correct decV dom_elts fullH) v).
 
   Definition dec_bound_in_image
              (decV : forall v w : Term.V L, {v = w} + {v <> w})
-             (dom_elts : list (mod_dom (varTerm L) sigma))
+             (dom_elts : list (mod_dom (varTerm L) usigma))
              (fullH : FullProj md_elt dom_elts)
              (v : Term.V L)
-    : {is_bound_in_image v} + {termset_fv v (subst_im L sigma)} :=
+    : {is_bound_in_image v} + {termset_fv v (subst_im L usigma)} :=
     match dec_free_in_image decV dom_elts fullH v with
     | left H => right H
     | right H => left H
@@ -267,9 +267,9 @@ Section fin_subst_bound_vars.
       we need to know the object we make is indeed bound). *)
   Local Definition hi_map
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
-        (dom_elts : list (mod_dom (varTerm L) sigma))
+        (dom_elts : list (mod_dom (varTerm L) usigma))
         (fullH : FullProj md_elt dom_elts)
-        (dom_elt : mod_dom (varTerm L) sigma)
+        (dom_elt : mod_dom (varTerm L) usigma)
     : option bound_in_image :=
     match dec_bound_in_image decV dom_elts fullH (md_elt dom_elt) with
     | left bdH => Some (exist _ (proj1_sig dom_elt) bdH)
@@ -279,41 +279,46 @@ Section fin_subst_bound_vars.
   Lemma not_fixed_if_bound_in_image
         (decV : forall v w : Term.V L, {v = w} + {v <> w})
         v
-    : is_bound_in_image v -> mod_elt (varTerm L) sigma v.
+    : is_bound_in_image v -> mod_elt (varTerm L) usigma v.
   Proof.
     intros boundH fixedH.
     destruct (free_in_image_iff_dom_elt_hits_it decV v) as [ _ H ].
     specialize (H (or_introl fixedH)).
     exact (boundH H).
   Qed.
+End subst_bound_vars.
 
-  Lemma finite_bound_in_image
-        (decV : forall v w : Term.V L, {v = w} + {v <> w})
-    : FiniteProj bound_image_var.
-  Proof.
-    destruct sigma_finiteH as [ dom_elts fullH ].
-    apply (finite_surj_option bound_image_var
-                              (hi_map decV dom_elts fullH)
-                              (lo_map decV (map md_elt dom_elts))
-                              sigma_finiteH).
-    - intro d.
-      destruct (check_bound_in_image_correct decV dom_elts fullH (md_elt d))
-        as [ bd2chk chk2bd ].
-      unfold hi_map, lo_map.
-      set (chk := (check_bound_in_image decV (map md_elt dom_elts) (md_elt d))).
-      fold chk in bd2chk, chk2bd.
-      destruct (dec_bound_in_image decV dom_elts fullH (md_elt d))
-        as [ bdH | fvH ];
-        simpl.
-      + rewrite (bd2chk bdH); reflexivity.
-      + case_eq chk; auto; intro H; contradiction (chk2bd H).
-    - intro bd.
-      destruct bd as [ v bdH ].
-      exists (exist _ _ (not_fixed_if_bound_in_image decV v bdH)); simpl.
-      unfold lo_map.
-      case_eq (check_bound_in_image decV (map md_elt dom_elts) v); auto.
-      rewrite <- Bool.not_true_iff_false.
-      rewrite <- (check_bound_in_image_correct decV dom_elts fullH v); tauto.
-  Qed.
-
-End fin_subst_bound_vars.
+Lemma finite_bound_in_image
+      {L}
+      (decV : forall v w : Term.V L, {v = w} + {v <> w})
+      (sigma : fin_subst L)
+  : FiniteProj (bound_image_var L (fin_subst_subst L sigma)).
+Proof.
+  destruct sigma as [ usig [ dom_elts fullH ] ]; simpl.
+  apply (finite_surj_option (bound_image_var L usig)
+                            (hi_map L usig decV dom_elts fullH)
+                            (lo_map L usig decV (map md_elt dom_elts))
+                            (exist _ dom_elts fullH)).
+  - intro d.
+    destruct (check_bound_in_image_correct L usig decV
+                                           dom_elts fullH (md_elt d))
+      as [ bd2chk chk2bd ].
+    unfold hi_map, lo_map.
+    set (chk := (check_bound_in_image L usig decV
+                                      (map md_elt dom_elts) (md_elt d))).
+    fold chk in bd2chk, chk2bd.
+    destruct (dec_bound_in_image L usig decV
+                                 dom_elts fullH (md_elt d))
+      as [ bdH | fvH ];
+      simpl.
+    + rewrite (bd2chk bdH); reflexivity.
+    + case_eq chk; auto; intro H; contradiction (chk2bd H).
+  - intro bd.
+    destruct bd as [ v bdH ].
+    exists (exist _ _ (not_fixed_if_bound_in_image L usig decV v bdH)); simpl.
+    unfold lo_map.
+    case_eq (check_bound_in_image L usig decV (map md_elt dom_elts) v); auto.
+    rewrite <- Bool.not_true_iff_false.
+    rewrite <- (check_bound_in_image_correct L usig decV
+                                             dom_elts fullH v); tauto.
+Qed.
