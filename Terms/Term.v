@@ -192,4 +192,33 @@ Section Term.
     | funTerm f ts => S (vec_max_at term_height ts)
     end.
 
+  (** Of course, if you know a term has height zero (which we'll call
+      a "zterm"), you also know that it's a variable. We define a
+      function to extract that variable. *)
+
+  Definition zterm_var (t : Term) : term_height t = 0 -> V :=
+    match t with
+    | varTerm v => fun _ => v
+    | funTerm f ts =>
+      fun htH =>
+        False_rect _ (PeanoNat.Nat.neq_succ_0 (vec_max_at term_height ts) htH)
+    end.
+
+  Lemma zterm_var_irrel (t : Term) (htH0 htH1 : term_height t = 0)
+    : zterm_var t htH0 = zterm_var t htH1.
+  Proof.
+    destruct t; auto.
+    contradiction (PeanoNat.Nat.neq_succ_0 (vec_max_at term_height ts)).
+  Qed.
+
+  Lemma varTerm_zterm_var t H : varTerm (zterm_var t H) = t.
+  Proof.
+    destruct t; auto.
+    contradiction (PeanoNat.Nat.neq_succ_0 _ H).
+  Qed.
+
 End Term.
+
+Arguments zterm_var {L t} htH.
+Arguments zterm_var_irrel {L t} htH0 htH1.
+Arguments varTerm_zterm_var {L t} H.

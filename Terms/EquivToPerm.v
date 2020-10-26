@@ -26,40 +26,10 @@ Section sequiv_means_perm_lt.
   Variable L : lType.
   Notation V := (Term.V L).
 
-  (** Firstly, we a helper function and facts about it. This function
-      takes a term of height zero (which must actually be a variable)
-      and extracts that variable. *)
-
-  Definition unpack_height_0_term (t : Term L)
-    : term_height t = 0 -> V :=
-    match t with
-    | varTerm _ v => fun _ => v
-    | funTerm f ts =>
-      fun htH =>
-        False_rect _ (PeanoNat.Nat.neq_succ_0
-                        (vec_max_at (term_height (L:=L)) ts) htH)
-    end.
-
-  Lemma unpack_height_0_term_irrel
-        (t : Term L) (htH0 htH1 : term_height t = 0)
-    : unpack_height_0_term t htH0 = unpack_height_0_term t htH1.
-  Proof.
-    destruct t; auto.
-    contradiction (PeanoNat.Nat.neq_succ_0
-                     (vec_max_at (term_height (L:=L)) ts)).
-  Qed.
-
-  Lemma varTerm_unpack_height_0_term t H
-    : varTerm L (unpack_height_0_term t H) = t.
-  Proof.
-    destruct t; auto.
-    contradiction (PeanoNat.Nat.neq_succ_0 _ H).
-  Qed.
-
-  (** Now we throw in the assumptions used in lemma 2.10. Here, we
-      arbitrarily decide that there will be more bound variables in the
-      image of [sigma'] than in the image of [sigma]. We'll argue by
-      symmetry at the very end. *)
+  (** Throw in the assumptions used in lemma 2.10. Here, we
+      arbitrarily decide that there will be more bound variables in
+      the image of [sigma'] than in the image of [sigma]. We'll argue
+      by symmetry at the very end. *)
 
   Hypothesis decV : forall v v' : V, {v = v'} + {v <> v'}.
   Variables sigma sigma' rho rho' : fin_subst L.
@@ -130,14 +100,13 @@ Section sequiv_means_perm_lt.
 
   Local Definition vrho (x : sig is_sigma_fv) : V :=
     match x with
-    | exist _ v H =>
-      unpack_height_0_term (r v) (rho_im_sigma_has_height_0 v H)
+    | exist _ v H => zterm_var (rho_im_sigma_has_height_0 v H)
     end.
 
   Lemma vrho_correct v H
     : varTerm L (vrho (exist _ v H)) = r v.
   Proof.
-    apply varTerm_unpack_height_0_term.
+    apply varTerm_zterm_var.
   Qed.
 
   Lemma vrho_is_fv_for_sigma' x
@@ -158,7 +127,7 @@ Section sequiv_means_perm_lt.
   Lemma vrho_irrel v (fvH0 fvH1 : is_sigma_fv v)
     : vrho (exist _ v fvH0) = vrho (exist _ v fvH1).
   Proof.
-    unfold vrho; auto using unpack_height_0_term_irrel.
+    unfold vrho; auto using zterm_var_irrel.
   Qed.
 
   (** We need to show some sort of finiteness property for [vrho]. The
