@@ -162,6 +162,9 @@ Section subst.
   Definition fin_subst_subst : fin_subst -> Subst :=
     fun s => let (s', _) := s in s'.
 
+  Definition fin_subst_ext_eq (s s' : fin_subst) : Prop :=
+    forall v, fin_subst_subst s v = fin_subst_subst s' v.
+
   (** We can construct our first [fin_subst] from varTerm. Since this
       is a trivial modification of [varTerm], it definitely satisfies
       the definition. *)
