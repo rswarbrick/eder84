@@ -82,9 +82,8 @@ Section rem_dups_below.
     intros nsearchH inbH.
     rewrite map_cons.
     destruct 1 as [ <- | x ].
-    - auto using
-           (eq_true_false_abs (search B decB (p a) s)),
-           (Is_true_eq_true _ (in_imp_search _ decB _ _ inbH)).
+    - rewrite (in_imp_search _ decB _ _ inbH) in nsearchH.
+      contradiction diff_true_false.
     - contradiction (IH (p a :: s) (in_cons (p a) b s inbH)).
   Qed.
 
@@ -109,8 +108,7 @@ Section rem_dups_below.
       intros searchH inconsH.
     - destruct inconsH as [ <- | ]; auto; intro notinH.
       contradiction notinH.
-      apply (search_imp_in _ decB).
-      apply (Is_true_eq_left _ searchH).
+      eauto using search_imp_in.
     - rewrite map_cons.
       destruct (decB b (p a)) as [ <- | neH ]; intros notinH.
       + apply in_eq.

@@ -52,18 +52,19 @@ Section decA.
     | cons a' l' => if decA a a' then true else search a l'
     end.
 
-  Lemma search_imp_in a l : Is_true (search a l) -> In a l.
+  Lemma search_imp_in a l : is_true (search a l) -> In a l.
   Proof.
-    induction l; auto; simpl; if_dec; auto.
+    induction l; unfold is_true; simpl; auto using diff_false_true.
+    destruct (decA _ _); auto.
   Qed.
 
-  Lemma in_imp_search a l : In a l -> Is_true (search a l).
+  Lemma in_imp_search a l : In a l -> is_true (search a l).
   Proof.
     induction l as [ | a' ]; simpl; auto.
     if_dec; simpl; auto; destruct 1; auto; congruence.
   Qed.
 
-  Lemma search_iff_in a l : Is_true (search a l) <-> In a l.
+  Lemma search_iff_in a l : is_true (search a l) <-> In a l.
   Proof.
     constructor; auto using search_imp_in, in_imp_search.
   Qed.
@@ -74,8 +75,8 @@ Section decA.
       P.
   Proof.
     case_eq (search a l).
-    - intro stH. pose (search_imp_in _ _ (Is_true_eq_left _ stH)); auto.
-    - intros sfH; rewrite <- search_iff_in, sfH. auto.
+    - auto using search_imp_in.
+    - intros sfH; rewrite <- search_iff_in, sfH; unfold is_true; auto.
   Qed.
 
   Ltac search_discr :=
@@ -110,7 +111,7 @@ Section decA.
   Lemma search_false_imp_not_in a l
     : search a l = false -> ~ In a l.
   Proof.
-    intros searchH; rewrite <- search_iff_in, searchH. auto.
+    intros searchH; rewrite <- search_iff_in, searchH; unfold is_true; auto.
   Qed.
 
   Lemma seen_not_in_rem_dups a seen l
@@ -184,3 +185,150 @@ Proof.
   destruct n; simpl; auto.
   split; eauto using in_take.
 Qed.
+
+(**
+
+  As above, but "under" a map. For example, set [f] to [fst] to get a
+  nice way to work with lists of pairs defining a function.
+
+*)
+
+Section decB.
+  Variables A B : Type.
+  Variable f : A -> B.
+
+  Fixpoint distinct_under (l : list A) :=
+    match l with
+    | nil => True
+    | a :: tl => (~ in_under f (f a) tl) /\ distinct_under tl
+    end.
+
+  Lemma distinct_under_cons_intro a l
+    : ~ in_under f (f a) l -> distinct_under l -> distinct_under (a :: l).
+  Proof. simpl; auto. Qed.
+
+  Lemma distinct_under_uncons a l
+    : distinct_under (a :: l) -> distinct_under l.
+  Proof.
+    simpl; tauto.
+  Qed.
+
+  Hint Resolve distinct_under_cons_intro : distinct.
+
+  Hypothesis decB : forall b b' : B, {b = b'} + {b <> b'}.
+
+  Lemma distinct_under_remove a l
+    : distinct_under l -> distinct_under (remove_under decB f a l).
+  Proof.
+    induction l as [ | x l IH ]; try tauto.
+    destruct 1; simpl; destruct (decB a (f x));
+      eauto 6 using distinct_under_cons_intro, in_under_remove_means_in_original.
+  Qed.
+
+  Fixpoint rem_dups_under (seen : list B) (l : list A) : list A :=
+    match l with
+    | nil => nil
+    | a :: tl => if search _ decB (f a) seen
+                 then rem_dups_under seen tl
+                 else a :: (rem_dups_under (f a :: seen) tl)
+    end.
+
+  Lemma rem_dups_under_cons seen a l
+    : rem_dups_under seen (a :: l) =
+      (if search _ decB (f a) seen
+       then rem_dups_under seen l
+       else a :: rem_dups_under (f a :: seen) l).
+  Proof. simpl; auto. Qed.
+
+  Hint Rewrite rem_dups_under_cons : rem_dups.
+
+  Lemma seen_not_in_rem_dups_under b seen l
+    : In b seen -> ~ in_under f b (rem_dups_under seen l).
+  Proof.
+    revert seen; induction l as [ | a l IH ]; intro seen; auto.
+    autorewrite with rem_dups.
+    apply (search_induct _ decB (f a) seen); intros ->; auto.
+    intros fanewH bseenH; simpl.
+    specialize (IH (f a :: seen) (in_cons _ _ _ bseenH)).
+    intro H; destruct H as [ -> | ]; auto.
+  Qed.
+
+  Lemma distinct_under_rem_dups seen l
+    : distinct_under (rem_dups_under seen l).
+  Proof.
+    revert seen; induction l as [ | a l IH ]; intro seen; simpl; auto.
+    apply (search_induct _ decB (f a) seen); intros ->; auto.
+    intro notseen; simpl; auto using seen_not_in_rem_dups_under with datatypes.
+  Qed.
+
+  Lemma in_under_rem_dups_if b l seen
+    : in_under f b l -> ~ In b seen -> in_under f b (rem_dups_under seen l).
+  Proof.
+    revert seen.
+    induction l as [ | a l IH ]; try contradiction.
+    intros seen inH notseenH; simpl.
+    destruct (decB b (f a)) as [ eqH | neH ].
+    - rewrite <- eqH; case_eq (search B decB b seen); simpl; auto.
+      revert notseenH; rewrite <- (search_iff_in _ decB); tauto.
+    - destruct inH as [ | consH ]; [ contradiction | ].
+      case_eq (search B decB (f a) seen); simpl; auto.
+      intros notsearchH; right.
+      apply IH; auto.
+      destruct 1; auto.
+  Qed.
+
+  Lemma remove_not_in_under b l
+    : ~ in_under f b l -> remove_under decB f b l = l.
+  Proof.
+    induction l as [ | a l IH ]; try tauto.
+    simpl.
+    intro H; destruct (Decidable.not_or _ _ H) as [ neH nunderH ]; clear H.
+    destruct (decB b (f a)); [ tauto | apply f_equal; auto ].
+  Qed.
+
+  Lemma length_remove_under_le b l
+    : length (remove_under decB f b l) <= length l.
+  Proof.
+    induction l as [ | a l IH ]; auto.
+    simpl; destruct (decB b (f a)) as [ | neH ]; auto using le_S.
+    simpl; auto using le_n_S.
+  Qed.
+
+  Lemma length_remove_under_in b l
+    : in_under f b l -> length (remove_under decB f b l) < length l.
+  Proof.
+    induction l as [ | a l IH ]; [ contradiction | ].
+    simpl; destruct (decB b (f a)) as [ -> | neH ].
+    - auto using Lt.le_lt_n_Sm, length_remove_under_le.
+    - destruct 1 as [ | inH ]; [ contradiction | ].
+      simpl; auto using Lt.lt_n_S.
+  Qed.
+
+  Lemma length_distinct_under_remove_in b l
+    : distinct_under l -> in_under f b l ->
+      length l = S (length (remove_under decB f b l)).
+  Proof.
+    induction l as [ | a l IH ]; [ contradiction | ].
+    cbn [length in_under remove_under].
+    destruct 1 as [ nodupaH distinctH ].
+    intro inconsH; apply f_equal.
+    destruct (decB b (f a)) as [ -> | neH ].
+    - rewrite remove_not_in_under; auto.
+    - destruct inconsH; [ contradiction | auto ].
+  Qed.
+
+End decB.
+
+Arguments distinct_under {A B} f l.
+Arguments distinct_under_cons_intro {A B f a l} notinH dH.
+Arguments distinct_under_uncons {A B f a l} dH.
+Arguments distinct_under_remove {A B f} decB a {l} dH.
+Arguments rem_dups_under {A B} f decB seen l.
+Arguments rem_dups_under_cons {A B} f decB seen a l.
+Arguments seen_not_in_rem_dups_under {A B} f decB {b seen} l inH.
+Arguments distinct_under_rem_dups {A B} f decB seen l.
+Arguments in_under_rem_dups_if {A B f} decB {b l seen} inH unseenH.
+Arguments remove_not_in_under {A B f} decB {b l} notinH.
+Arguments length_remove_under_le {A B} f decB b l.
+Arguments length_remove_under_in {A B f} decB {b l} inH.
+Arguments length_distinct_under_remove_in {A B f} decB {b l} distH inH.

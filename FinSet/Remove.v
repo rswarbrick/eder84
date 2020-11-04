@@ -64,3 +64,71 @@ Arguments in_remove_means_in_original {A} decA {a a' l}.
 Hint Rewrite @remove_eq : remove.
 Hint Rewrite @remove_neq : remove.
 Hint Rewrite @remove_cons : remove.
+
+Section remove_under.
+  Variables A B : Type.
+  Hypothesis decB : forall b b' : B, {b = b'} + {b <> b'}.
+  Variable f : A -> B.
+
+  Fixpoint remove_under (b : B) (l : list A) :=
+    match l with
+    | nil => nil
+    | a :: tl => if decB b (f a)
+                 then remove_under b tl
+                 else a :: remove_under b tl
+    end.
+
+  Lemma remove_under_eq a l
+    : remove_under (f a) (a :: l) = remove_under (f a) l.
+  Proof.
+    simpl; destruct (decB (f a) (f a)); [ auto | contradiction ].
+  Qed.
+
+  Lemma remove_under_neq a b l
+    : b <> f a -> remove_under b (a :: l) = a :: remove_under b l.
+  Proof.
+    simpl; destruct (decB b (f a)); [ contradiction | auto ].
+  Qed.
+
+  Lemma remove_under_cons a b l
+    : remove_under b (a :: l) =
+      if decB b (f a) then remove_under b l else a :: remove_under b l.
+  Proof.
+    auto.
+  Qed.
+
+  Fixpoint in_under (b : B) (l : list A) :=
+    match l with
+    | nil => False
+    | a :: tl => b = f a \/ in_under b tl
+    end.
+
+  Lemma in_under_remove b b' l
+    : in_under b l -> b <> b' -> in_under b (remove_under b' l).
+  Proof.
+    intros inH neH.
+    induction l as [ | a l IH ]; [ contradiction | ].
+    simpl; destruct (decB b' (f a)) as [ -> | neH' ];
+      simpl; destruct inH; tauto.
+  Qed.
+
+  Lemma in_under_remove_means_in_original b b' l
+    : in_under b (remove_under b' l) -> in_under b l.
+  Proof.
+    induction l as [ | a l IH ]; auto.
+    simpl; destruct (decB b' (f a)); [ | destruct 1 ]; auto.
+  Qed.
+
+End remove_under.
+
+Arguments remove_under {A B} decB f b l.
+Arguments remove_under_eq {A B} decB f a l.
+Arguments remove_under_neq {A B} decB {f a b} l neH.
+Arguments remove_under_cons {A B} decB f a b l.
+Arguments in_under {A B} f b l.
+Arguments in_under_remove {A B} decB f {b b' l} inH neH.
+Arguments in_under_remove_means_in_original {A B} decB f {b b' l} inH.
+
+Hint Rewrite @remove_under_eq : remove.
+Hint Rewrite @remove_under_neq : remove.
+Hint Rewrite @remove_under_cons : remove.
