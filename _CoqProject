@@ -4,6 +4,7 @@ FinSet/FinMod.v
 FinSet/FinSet.v
 FinSet/FPCard.v
 FinSet/InjList.v
+FinSet/InjMod.v
 FinSet/ListFacts.v
 FinSet/ListMod.v
 FinSet/NatMap.v

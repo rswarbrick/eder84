@@ -7,11 +7,11 @@
 Require Import Lists.List.
 Require Import Program.Basics.
 
+Require Import Top.FinSet.Distinct.
+Require Import Top.FinSet.FinMod.
+Require Import Top.FinSet.FinSet.
 Require Import Top.FinSet.NatMap.
 Require Import Top.FinSet.ProjSet.
-Require Import Top.FinSet.FinSet.
-Require Import Top.FinSet.FinMod.
-
 
 Set Implicit Arguments.
 
@@ -329,5 +329,31 @@ Section decA.
         apply (fullH (exist _ a neH)).
       Qed.
     End FinIsList.
+
+    Lemma list_map_rem_dups' seen l a
+      : ~ In a seen ->
+        list_map l a = list_map (rem_dups_under fst decA seen l) a.
+    Proof.
+      revert seen.
+      induction l as [ | [ x y ] l IH ]; auto.
+      intros seen unseenH.
+      simpl; unfold upd_map; simpl.
+      case_eq (search A decA x seen); intro searchH.
+      - destruct (decA a x) as [ <- | neH ]; auto.
+        contradiction (search_imp_in _ _ _ _ searchH).
+      - simpl; unfold upd_map; simpl.
+        destruct (decA a x) as [ <- | neH ]; auto.
+        apply IH; intro inH; destruct inH; auto.
+    Qed.
+
+    Lemma list_map_rem_dups l a
+      : list_map l a = list_map (rem_dups_under fst decA nil l) a.
+    Proof.
+      apply list_map_rem_dups'; auto.
+    Qed.
+
   End ListMap.
 End decA.
+
+Arguments list_map_rem_dups' {A} decA {B} i {seen} l a.
+Arguments list_map_rem_dups {A} decA {B} i l a.

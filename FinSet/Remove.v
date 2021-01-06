@@ -119,6 +119,13 @@ Section remove_under.
     simpl; destruct (decB b' (f a)); [ | destruct 1 ]; auto.
   Qed.
 
+  Lemma in_under_preimage a b l
+    : In a l -> f a = b -> in_under b l.
+  Proof.
+    induction l as [ | x l IH ]; [ inversion 1 | ].
+    simpl; destruct 1 as [ -> | ]; auto.
+  Qed.
+
 End remove_under.
 
 Arguments remove_under {A B} decB f b l.
@@ -128,6 +135,7 @@ Arguments remove_under_cons {A B} decB f a b l.
 Arguments in_under {A B} f b l.
 Arguments in_under_remove {A B} decB f {b b' l} inH neH.
 Arguments in_under_remove_means_in_original {A B} decB f {b b' l} inH.
+Arguments in_under_preimage {A B} {f a b l} inH abH.
 
 Hint Rewrite @remove_under_eq : remove.
 Hint Rewrite @remove_under_neq : remove.

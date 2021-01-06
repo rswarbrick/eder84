@@ -261,20 +261,37 @@ Section decB.
     intro notseen; simpl; auto using seen_not_in_rem_dups_under with datatypes.
   Qed.
 
-  Lemma in_under_rem_dups_if b l seen
-    : in_under f b l -> ~ In b seen -> in_under f b (rem_dups_under seen l).
+  Lemma in_rem_dups_under_elim a seen l
+    : In a (rem_dups_under seen l) -> In a l.
   Proof.
-    revert seen.
-    induction l as [ | a l IH ]; try contradiction.
-    intros seen inH notseenH; simpl.
-    destruct (decB b (f a)) as [ eqH | neH ].
-    - rewrite <- eqH; case_eq (search B decB b seen); simpl; auto.
-      revert notseenH; rewrite <- (search_iff_in _ decB); tauto.
-    - destruct inH as [ | consH ]; [ contradiction | ].
-      case_eq (search B decB (f a) seen); simpl; auto.
-      intros notsearchH; right.
-      apply IH; auto.
-      destruct 1; auto.
+    revert seen; induction l as [ | a0 l IH ]; auto; intros seen.
+    simpl; apply (search_induct _ decB (f a0) seen); intros ->; eauto.
+    destruct 2 as [ -> | inH ]; eauto.
+  Qed.
+
+  Lemma in_under_rem_dups_iff b l seen
+    : (in_under f b l /\ ~ In b seen) <->
+      in_under f b (rem_dups_under seen l).
+  Proof.
+    split.
+    - revert seen; induction l as [ | a l IH ];
+        intros seen [ inH notseenH ]; [ contradiction | ].
+      simpl; destruct (decB b (f a)) as [ eqH | neH ].
+      + rewrite <- eqH; case_eq (search B decB b seen); simpl; auto.
+        revert notseenH; rewrite <- (search_iff_in _ decB); tauto.
+      + destruct inH as [ | consH ]; [ contradiction | ].
+        case_eq (search B decB (f a) seen); simpl; auto.
+        intros notsearchH; right.
+        apply IH; split; auto.
+        destruct 1; auto.
+    - revert seen; induction l as [ | a l IH ]; auto; intros seen.
+      simpl; apply (search_induct _ decB (f a) seen); intros ->.
+      + intros inH iuH; destruct (IH seen iuH); auto.
+      + intros unseenH iuH.
+        destruct iuH as [ -> | iuH ]; auto.
+        destruct (IH (f a :: seen) iuH) as [ iuH' unseenH' ].
+        split; auto.
+        intros inH; contradiction unseenH'; auto with datatypes.
   Qed.
 
   Lemma remove_not_in_under b l
@@ -327,7 +344,8 @@ Arguments rem_dups_under {A B} f decB seen l.
 Arguments rem_dups_under_cons {A B} f decB seen a l.
 Arguments seen_not_in_rem_dups_under {A B} f decB {b seen} l inH.
 Arguments distinct_under_rem_dups {A B} f decB seen l.
-Arguments in_under_rem_dups_if {A B f} decB {b l seen} inH unseenH.
+Arguments in_rem_dups_under_elim {A B f decB a seen l} inH.
+Arguments in_under_rem_dups_iff {A B} f decB b l seen.
 Arguments remove_not_in_under {A B f} decB {b l} notinH.
 Arguments length_remove_under_le {A B} f decB b l.
 Arguments length_remove_under_in {A B f} decB {b l} inH.
