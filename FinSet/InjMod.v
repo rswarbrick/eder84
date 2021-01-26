@@ -511,13 +511,14 @@ Section maps.
       [extend_cycle], which we define and then show has the properties
       we want. *)
 
-  Definition extend_cycle a1 a2 ll l' :=
-    (a1, i a2) :: (ne_tail a2 ll, i a1) :: l'.
+  Definition extend_cycle a1 a2 a3 l' :=
+    (a1, i a2) :: (a3, i a1) :: l'.
 
   Lemma extend_trimmed {l a1 a2 ll} u
     : is_preimage_chain l a1 (a2 :: ll) ->
       list_map_preimage l (i a1) = Some (ne_tail a2 ll) ->
-      f l u = f (extend_cycle a1 a2 ll (trim_cycle l (a1, a2, ll))) u.
+      f l u = f (extend_cycle a1 a2 (ne_tail a2 ll)
+                              (trim_cycle l (a1, a2, ll))) u.
   Proof.
     intros pcH lmpH.
     pose proof (lmp_some_elim l lmpH) as flanH.
@@ -533,9 +534,11 @@ Section maps.
     length l0 < length l1 /\
     Injective (list_map decA i l0) /\
     Injective (list_map decA i l1) /\
-    exists a0 a1 ll,
-    forall u, list_map decA i l1 u =
-         list_map decA i (extend_cycle a0 a1 ll l0) u.
+    exists a1 a2 a3,
+      list_map decA i l0 a3 = i a2 /\
+      forall u,
+        list_map decA i l1 u =
+        list_map decA i (extend_cycle a1 a2 a3 l0) u.
 
   (** This lemma shows how to simplify an injection if we've managed
       to find a cycle. We ask that we've got a pre-image chain of the
@@ -555,7 +558,11 @@ Section maps.
     unfold extends2; split_conj; auto.
     - auto using trim_cycle_shorter.
     - eauto using trim_cycle_inj.
-    - eauto using extend_trimmed.
+    - exists a1. exists a2; exists (ne_tail a2 ll).
+      split.
+      + simpl; unfold upd_map; simpl.
+        destruct (decA _ _); tauto.
+      + auto using extend_trimmed.
   Qed.
 
   (** We know how to cons terms one by one onto a pre-image chain. Now
