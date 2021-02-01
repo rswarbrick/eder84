@@ -169,12 +169,6 @@ Section sequiv_means_perm_lt.
     rewrite vrho_correct; auto.
   Qed.
 
-  Lemma varTerm_injective v w
-    : varTerm L v = varTerm L w -> v = w.
-  Proof.
-    injection 1; auto.
-  Qed.
-
   Lemma mod_elt_vrho_to_rho v
         (fvH : termset_fv v (subst_im L s))
         (neH : mod_elt fv_proj vrho (exist _ v fvH))

@@ -60,6 +60,12 @@ Section Term.
   | varTerm : V -> Term
   | funTerm (f : F) (ts : vec Term (a f)) : Term.
 
+  Lemma varTerm_injective v w
+    : varTerm v = varTerm w -> v = w.
+  Proof.
+    injection 1; auto.
+  Qed.
+
   (** When defining a function on terms, you need an induction
       rule. We use vectors to represent the rose tree structure of a
       term and Coq's automatic induction rule isn't strong enough, so
@@ -217,8 +223,17 @@ Section Term.
     contradiction (PeanoNat.Nat.neq_succ_0 _ H).
   Qed.
 
+  Lemma zterm_var_inj t t' (H : term_height t = 0) (H' : term_height t' = 0)
+    : zterm_var t H = zterm_var t' H' -> t = t'.
+  Proof.
+    destruct t; [ | contradiction (PeanoNat.Nat.neq_succ_0 _ H) ].
+    destruct t'; [ | contradiction (PeanoNat.Nat.neq_succ_0 _ H') ].
+    simpl; intro; f_equal; auto.
+  Qed.
+
 End Term.
 
 Arguments zterm_var {L t} htH.
 Arguments zterm_var_irrel {L t} htH0 htH1.
 Arguments varTerm_zterm_var {L t} H.
+Arguments zterm_var_inj {L t t'} H H'.
