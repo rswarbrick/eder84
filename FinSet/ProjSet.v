@@ -59,6 +59,18 @@ Section InProj.
   Proof.
     unfold InProj; rewrite map_app; apply in_or_app.
   Qed.
+
+  Lemma in_proj_lift b l
+    : InProj b l ->
+      exists a : A, In a l /\ p a = b.
+  Proof.
+    induction l as [ | a l IH ]; [ inversion 1 | ].
+    intros inH; destruct (in_proj_inv inH) as [ eqH | consH ].
+    - exists a; auto with datatypes.
+    - destruct (IH consH) as [ a' [ inH' pa'H ] ].
+      exists a'. auto with datatypes.
+  Qed.
+
 End InProj.
 
 (** As you might expect, [InProj] generalises the standard library's
