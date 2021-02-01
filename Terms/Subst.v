@@ -160,7 +160,7 @@ Section subst.
   Definition fin_subst := sigT is_fin_subst.
 
   Definition fin_subst_subst : fin_subst -> Subst :=
-    fun s => let (s', _) := s in s'.
+    projT1 (P := is_fin_subst).
 
   Definition fin_subst_ext_eq (s s' : fin_subst) : Prop :=
     forall v, fin_subst_subst s v = fin_subst_subst s' v.
