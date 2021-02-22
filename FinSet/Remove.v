@@ -140,3 +140,26 @@ Arguments in_under_preimage {A B} {f a b l} inH abH.
 Hint Rewrite @remove_under_eq : remove.
 Hint Rewrite @remove_under_neq : remove.
 Hint Rewrite @remove_under_cons : remove.
+
+Section lift.
+  Variables A B : Type.
+  Variable p : A -> B.
+
+  Lemma lift_in_under_iff b l
+    : in_under p b l <-> (exists a, In a l /\ p a = b).
+  Proof.
+    split.
+    - induction l as [ | a l IH ]; [ inversion 1 | ].
+      destruct 1 as [ -> | consH ].
+      + exists a; auto with datatypes.
+      + destruct (IH consH) as [ a' [ inH pa'H ] ].
+        exists a'; auto with datatypes.
+    - destruct 1 as [ a [ inH paH ] ].
+      induction l as [ | a' l IH ]; [ inversion inH | ].
+      destruct inH as [ -> | consH ].
+      + left; auto.
+      + right; auto.
+  Qed.
+End lift.
+
+Arguments lift_in_under_iff {A B} p b l.
