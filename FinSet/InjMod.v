@@ -312,25 +312,34 @@ Section maps.
       rewrite (lmp_none_elim l u noneH iaH) in iaH; auto.
   Qed.
 
-  Definition extends1 l0 l1 :=
+  Definition is_ext1 l0 l1 a :=
     length l0 < length l1 /\
     inj_on P (list_map decA i l0) /\
     inj_on P (list_map decA i l1) /\
-    exists a, forall u, list_map decA i l1 u =
-              list_map decA i ((a, f l1 a) :: l0) u.
+    forall u, list_map decA i l1 u =
+         list_map decA i ((a, f l1 a) :: l0) u.
+
+  Definition extends1 l0 l1 := exists a, is_ext1 l0 l1 a.
 
   (** What's more, we can recover the existing map by consing on our pair
       (which gives us a sort of induction step). *)
-  Lemma lmp_none_ind_step {l} (injfH : inj_on P (f l)) {a}
+  Lemma lmp_none_ind_step' {l} (injfH : inj_on P (f l)) {a}
     : in_under fst a l ->
       list_map_preimage l (i a) = None ->
-      extends1 (remove_under decA fst a l) l.
+      is_ext1 (remove_under decA fst a l) l a.
   Proof.
-    intros inH noneH; unfold extends1.
+    intros inH noneH; unfold is_ext1.
     split_conj; auto using lmp_none_simpl, length_remove_under_in.
-    exists a; intro u; f_cons_simpl; rewrite list_map_remove_under.
+    intro u; f_cons_simpl; rewrite list_map_remove_under.
     destruct (decA u a) as [ -> | ]; auto.
   Qed.
+
+  Definition lmp_none_ind_step
+             {l} (injfH : inj_on P (f l)) {a}
+             (inH : in_under fst a l)
+             (lmpH : list_map_preimage l (i a) = None)
+    : extends1 (remove_under decA fst a l) l :=
+    ex_intro _ a (lmp_none_ind_step' injfH inH lmpH).
 
   (** There's another simple case: if [list_map_preimage l (i a)] is
       [a], removing any pairs starting with [a] from [l] will yield an
@@ -579,22 +588,25 @@ Section maps.
     destruct (decA u (ne_tail a2 ll)) as [ -> | ]; auto.
   Qed.
 
-  Definition extends2 l0 l1 :=
+  Definition is_ext2 l0 l1 (aaa : A * A * A) :=
     length l0 < length l1 /\
     inj_on P (list_map decA i l0) /\
     inj_on P (list_map decA i l1) /\
-    exists a1 a2 a3,
-      list_map decA i l0 a3 = i a2 /\
-      forall u,
-        list_map decA i l1 u =
-        list_map decA i (extend_cycle a1 a2 a3 l0) u.
+    let (aa, a3) := aaa in
+    let (a1, a2) := aa in
+    list_map decA i l0 a3 = i a2 /\
+    forall u,
+      list_map decA i l1 u =
+      list_map decA i (extend_cycle a1 a2 a3 l0) u.
+
+  Definition extends2 l0 l1 := exists t, is_ext2 l0 l1 t.
 
   (** This lemma shows how to simplify an injection if we've managed
       to find a cycle. We ask that we've got a pre-image chain of the
       form [a1 :: a2 :: ll] where the pre-image of [a1] is the tail of
       [a2 :: ll]. *)
 
-  Lemma lmp_some_tail_ind_stop l a1 a2 ll
+  Lemma lmp_some_tail_ind_stop' l a1 a2 ll
     : inj_on P (f l) ->
       is_preimage_chain l a1 (a2 :: ll) ->
       is_P_list (a1 :: a2 :: ll) ->
@@ -603,18 +615,31 @@ Section maps.
       list_map_preimage l (i a1) = Some (ne_tail a2 ll) ->
       in_under fst a1 l ->
       in_under fst (ne_tail a2 ll) l ->
-      extends2 (trim_cycle l (a1, a2, ll)) l.
+      is_ext2 (trim_cycle l (a1, a2, ll)) l ((a1, a2), ne_tail a2 ll).
   Proof.
     intros injfH pcH plH pl2H distH lmpH in1H innH.
-    unfold extends2; split_conj; auto.
+    unfold is_ext2; split_conj; auto.
     - auto using trim_cycle_shorter.
     - eauto using trim_cycle_inj.
-    - exists a1. exists a2; exists (ne_tail a2 ll).
-      split.
-      + simpl; unfold upd_map; simpl.
-        destruct (decA _ _); tauto.
-      + auto using extend_trimmed.
+    - simpl; unfold upd_map; simpl; destruct (decA _ _); tauto.
+    - auto using extend_trimmed.
   Qed.
+
+  Definition lmp_some_tail_ind_stop
+             l a1 a2 ll
+             (injH : inj_on P (f l))
+             (pcH : is_preimage_chain l a1 (a2 :: ll))
+             (plH : is_P_list (a1 :: a2 :: ll))
+             (pl2H : is_P_list2 l)
+             (distH : distinct (a1 :: a2 :: ll))
+             (lmpH : list_map_preimage l (i a1) = Some (ne_tail a2 ll))
+             (inH1 : in_under fst a1 l)
+             (inH2 : in_under fst (ne_tail a2 ll) l)
+    : extends2 (trim_cycle l (a1, a2, ll)) l :=
+    ex_intro _ ((a1, a2), ne_tail a2 ll)
+             (lmp_some_tail_ind_stop' l a1 a2 ll
+                                      injH pcH plH pl2H
+                                      distH lmpH inH1 inH2).
 
   (** We know how to cons terms one by one onto a pre-image chain. Now
       we define a function that does this [n] times, if possible. If
@@ -626,26 +651,26 @@ Section maps.
       in [l], so we must have some sort of repeat if [n] is [S (length
       l)]. *)
 
-  Inductive cycle_result : Type :=
-  | DeadEnd  : A -> cycle_result
-  | Repeat   : A -> cycle_result
-  | Cycle    : A -> list A -> cycle_result
-  | Straight : A -> list A -> cycle_result.
+  Inductive bc_result : Type :=
+  | BCDeadEnd  : A -> bc_result
+  | BCRepeat   : A -> bc_result
+  | BCCycle    : A -> list A -> bc_result
+  | BCStraight : A -> list A -> bc_result.
 
   Fixpoint build_cycle'
            (l : list (A * B))
            (n : nat) (a0 : A) (ll : list A) (a : A) {struct n}
-    : cycle_result :=
+    : bc_result :=
     match n with
-    | 0 => Straight a0 ll
+    | 0 => BCStraight a0 ll
     | S n' =>
       match list_map_preimage l (i a0) with
-      | None => DeadEnd a0
+      | None => BCDeadEnd a0
       | Some a1 =>
         if decA a1 a0
-        then Repeat a0
+        then BCRepeat a0
         else if decA a1 a
-             then Cycle a1 (a0 :: ll)
+             then BCCycle a1 (a0 :: ll)
              else build_cycle' l n' a1 (a0 :: ll) a
       end
     end.
@@ -655,8 +680,8 @@ Section maps.
   Lemma dead_end_elim' {l n a0 ll a a'}
     : inj_on P (f l) ->
       in_under fst a0 l ->
-      build_cycle' l n a0 ll a = DeadEnd a' ->
-      extends1 (remove_under decA fst a' l) l.
+      build_cycle' l n a0 ll a = BCDeadEnd a' ->
+      is_ext1 (remove_under decA fst a' l) l a'.
   Proof.
     intros injH inH.
     revert a0 ll inH; induction n as [ | n IH ]; intros a0 ll inH;
@@ -668,25 +693,33 @@ Section maps.
       destruct (decA a1 a) as [ | ne1H ]; [ inversion bcH | ].
       exact (IH a1 (a0 :: ll) (lmp_some_in l lmpH) bcH).
     - intros lmpH; injection 1 as <-.
-      auto using lmp_none_ind_step.
+      auto using lmp_none_ind_step'.
   Qed.
 
   Lemma dead_end_elim {l n a a'}
     : inj_on P (f l) ->
       in_under fst a l ->
-      build_cycle l n a = DeadEnd a' ->
-      extends1 (remove_under decA fst a' l) l.
+      build_cycle l n a = BCDeadEnd a' ->
+      is_ext1 (remove_under decA fst a' l) l a'.
   Proof.
     apply dead_end_elim'.
   Qed.
 
+  Definition dead_end_rec
+        {l n a a'}
+        (injH : inj_on P (f l))
+        (inH : in_under fst a l)
+        (bcH : build_cycle l n a = BCDeadEnd a')
+    : extends1 (remove_under decA fst a' l) l :=
+    ex_intro _ a' (dead_end_elim injH inH bcH).
+
   Lemma repeat_elim' {l n a0 ll a a'}
     : inj_on P (f l) ->
       in_under fst a0 l ->
-      build_cycle' l n a0 ll a = Repeat a' ->
-      extends1 (remove_under decA fst a' l) l.
+      build_cycle' l n a0 ll a = BCRepeat a' ->
+      is_ext1 (remove_under decA fst a' l) l a'.
   Proof.
-    intros injH; unfold extends1.
+    intros injH.
     revert a0 ll; induction n as [ | n IH ]; intros a0 ll;
       [ inversion 2 | ].
     intros inH.
@@ -695,30 +728,37 @@ Section maps.
       [ | inversion 2 ].
     intros a1 lmpH.
     destruct (decA a1 a0) as [ -> | ne01H ].
-    - injection 1 as <-; split_conj; auto.
+    - unfold is_ext1.
+      injection 1 as <-; split_conj; auto.
       + auto using (length_remove_under_in decA inH).
       + auto using lmp_same_simpl.
-      + exists a0.
+      + simpl.
         fold (f (remove_under decA fst a0 l)).
         intro u; unfold upd_map; simpl.
         rewrite (lmp_same_eval lmpH u).
         destruct (decA u a0) as [ <- | ]; auto.
     - destruct (decA a1 a) as [ | ne1H ]; [ inversion 1 | ].
-      intros bcH.
-      apply (IH a1 (a0 :: ll) (lmp_some_in l lmpH) bcH).
+      intros bcH; apply (IH a1 (a0 :: ll) (lmp_some_in l lmpH) bcH).
   Qed.
 
   Lemma repeat_elim {l n a a'}
     : inj_on P (f l) ->
       in_under fst a l ->
-      build_cycle l n a = Repeat a' ->
-      extends1 (remove_under decA fst a' l) l.
+      build_cycle l n a = BCRepeat a' ->
+      is_ext1 (remove_under decA fst a' l) l a'.
   Proof.
     apply repeat_elim'.
   Qed.
 
+  Definition repeat_rec {l n a a'}
+             (injH : inj_on P (f l))
+             (inH : in_under fst a l)
+             (bcH : build_cycle l n a = BCRepeat a')
+    : extends1 (remove_under decA fst a' l) l :=
+    ex_intro _ a' (repeat_elim injH inH bcH).
+
   Lemma cycle_ind' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Cycle a0' ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a0' ll' ->
       forall PP : A -> list A -> Prop,
       forall Q : A -> list A -> Prop,
         PP a0 ll ->
@@ -748,7 +788,7 @@ Section maps.
   Qed.
 
   Lemma cycle_ind_pp' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Cycle a0' ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a0' ll' ->
       forall P : A -> list A -> Prop,
         P a0 ll ->
         (forall a1 a0 ll,
@@ -763,7 +803,7 @@ Section maps.
   Qed.
 
   Lemma cycle_head {l n a a' ll'}
-    : build_cycle l n a = Cycle a' ll' ->
+    : build_cycle l n a = BCCycle a' ll' ->
       a' = a.
   Proof.
     intros bcH.
@@ -771,7 +811,7 @@ Section maps.
   Qed.
 
   Lemma cycle_tail' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       ne_tail a0 ll = a ->
       ne_tail a ll' = a.
   Proof.
@@ -779,14 +819,14 @@ Section maps.
   Qed.
 
   Lemma cycle_tail {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       ne_tail a ll' = a.
   Proof.
     eauto using cycle_tail'.
   Qed.
 
   Lemma cycle_pc' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       is_preimage_chain l a0 ll ->
       is_preimage_chain l a ll'.
   Proof.
@@ -796,7 +836,7 @@ Section maps.
   Qed.
 
   Lemma cycle_pc {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       is_preimage_chain l a ll'.
   Proof.
     intros bcH.
@@ -804,7 +844,7 @@ Section maps.
   Qed.
 
   Lemma cycle_plist' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       is_P_list (a0 :: ll) ->
       is_P_list2 l ->
       is_P_list (a :: ll').
@@ -815,7 +855,7 @@ Section maps.
   Qed.
 
   Lemma cycle_plist {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       P a ->
       is_P_list2 l ->
       is_P_list (a :: ll').
@@ -825,7 +865,7 @@ Section maps.
   Qed.
 
   Lemma cycle_distinct' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       is_preimage_chain l a0 ll ->
       is_P_list (a0 :: ll) ->
       is_P_list2 l ->
@@ -854,7 +894,7 @@ Section maps.
   Qed.
 
   Lemma cycle_distinct {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       P a ->
       is_P_list2 l ->
       distinct ll'.
@@ -866,7 +906,7 @@ Section maps.
   Qed.
 
   Lemma cycle_length' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       length ll' > length ll.
   Proof.
     intros bcH.
@@ -880,7 +920,7 @@ Section maps.
   Qed.
 
   Lemma cycle_structure' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       ne_tail a0 ll = a ->
       length ll' >= 2.
   Proof.
@@ -918,7 +958,7 @@ Section maps.
     a0 :: a1 :: ll.
 
   Lemma cycle_structure {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       ll' = cons2 (uncons2 ll' a).
   Proof.
     intros bcH.
@@ -946,7 +986,7 @@ Section maps.
   Qed.
 
   Lemma cycle_lmp' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Cycle a (a0' :: ll') ->
+    : build_cycle' l n a0 ll a = BCCycle a (a0' :: ll') ->
       list_map_preimage l (i a0') = Some a.
   Proof.
     revert a0 ll; induction n as [ | n IH ]; [ inversion 1 | ]; intros a0 ll.
@@ -960,14 +1000,14 @@ Section maps.
   Qed.
 
   Lemma cycle_lmp {l n a a0 ll}
-    : build_cycle l n a = Cycle a (a0 :: ll) ->
+    : build_cycle l n a = BCCycle a (a0 :: ll) ->
       list_map_preimage l (i a0) = Some a.
   Proof.
     eauto using cycle_lmp'.
   Qed.
 
   Lemma cycle_in_under' {l n a0 ll a ll'}
-    : build_cycle' l n a0 ll a = Cycle a ll' ->
+    : build_cycle' l n a0 ll a = BCCycle a ll' ->
       (forall aa, In aa (a0 :: ll) -> in_under fst aa l) ->
       forall aa, In aa (a :: ll') -> in_under fst aa l.
   Proof.
@@ -980,7 +1020,7 @@ Section maps.
   Qed.
 
   Lemma cycle_in_under {l n a ll'}
-    : build_cycle l n a = Cycle a ll' ->
+    : build_cycle l n a = BCCycle a ll' ->
       in_under fst a l ->
       forall aa, In aa (a :: ll') ->
             in_under fst aa l.
@@ -992,20 +1032,24 @@ Section maps.
 
   Lemma cycle_elim {l n a a' ll'}
     : inj_on P (f l) ->
-      build_cycle l n a = Cycle a' ll' ->
+      build_cycle l n a = BCCycle a' ll' ->
       P a ->
       is_P_list2 l ->
       in_under fst a l ->
-      extends2 (trim_cycle l (uncons2 ll' a)) l.
+      is_ext2 (trim_cycle l (uncons2 ll' a)) l
+              (fst (uncons2 ll' a),
+               ne_tail (snd (fst (uncons2 ll' a)))
+                       (snd (uncons2 ll' a))).
   Proof.
     intros injH bcH paH pl2H inH.
     rewrite (cycle_head bcH) in bcH; clear a'.
     rewrite (cycle_structure bcH) in bcH.
-    destruct (uncons2 ll' a) as [ [ a0 a1 ] ll ]; simpl in bcH.
+    destruct (uncons2 ll' a) as [ [ a0 a1 ] ll ].
+    simpl in bcH; simpl.
     assert (ne_tail a1 ll = a) as tailH;
       [ pose proof (cycle_tail bcH) as tailH';
         simpl in tailH'; rewrite tailH'; auto | ].
-    apply (lmp_some_tail_ind_stop l a0 a1 ll);
+    apply (lmp_some_tail_ind_stop' l a0 a1 ll);
       try (rewrite tailH); auto.
     - destruct (cycle_pc bcH); auto.
     - intros aa inH'.
@@ -1016,8 +1060,17 @@ Section maps.
     - apply (cycle_in_under bcH inH); simpl; auto.
   Qed.
 
+  Definition cycle_rec {l n a a' ll'}
+             (injH : inj_on P (f l))
+             (bcH : build_cycle l n a = BCCycle a' ll')
+             (paH : P a)
+             (pl2H : is_P_list2 l)
+             (inH : in_under fst a l)
+    : extends2 (trim_cycle l (uncons2 ll' a)) l :=
+    ex_intro _ _ (cycle_elim injH bcH paH pl2H inH).
+
   Lemma straight_ind'  {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Straight a0' ll' ->
+    : build_cycle' l n a0 ll a = BCStraight a0' ll' ->
       forall P : A -> list A -> Prop,
         P a0 ll ->
         (forall a1 a0 ll,
@@ -1040,7 +1093,7 @@ Section maps.
   Qed.
 
   Lemma straight_length' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Straight a0' ll' ->
+    : build_cycle' l n a0 ll a = BCStraight a0' ll' ->
       length (a0' :: ll') = n + length (a0 :: ll).
   Proof.
     revert a0 ll; induction n as [ | n IH ]; intros a0 ll;
@@ -1054,7 +1107,7 @@ Section maps.
   Qed.
 
   Lemma straight_length {l n a a0 ll}
-    : build_cycle l n a = Straight a0 ll ->
+    : build_cycle l n a = BCStraight a0 ll ->
       length (a0 :: ll) = S n.
   Proof.
     intros bcH.
@@ -1062,7 +1115,7 @@ Section maps.
   Qed.
 
   Lemma straight_distinct' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Straight a0' ll' ->
+    : build_cycle' l n a0 ll a = BCStraight a0' ll' ->
       is_P_list2 l ->
       (is_preimage_chain l a0 ll /\
        is_P_list (a0 :: ll) /\
@@ -1085,7 +1138,7 @@ Section maps.
   Qed.
 
   Lemma straight_distinct {l n a a0 ll}
-    : build_cycle l n a = Straight a0 ll ->
+    : build_cycle l n a = BCStraight a0 ll ->
       P a ->
       is_P_list2 l ->
       distinct (a0 :: ll).
@@ -1096,7 +1149,7 @@ Section maps.
   Qed.
 
   Lemma straight_in_l' {l n a0 ll a a0' ll'}
-    : build_cycle' l n a0 ll a = Straight a0' ll' ->
+    : build_cycle' l n a0 ll a = BCStraight a0' ll' ->
       (forall x, In x (a0 :: ll) -> in_under fst x l) ->
       (forall x, In x (a0' :: ll') -> in_under fst x l).
   Proof.
@@ -1107,7 +1160,7 @@ Section maps.
   Qed.
 
   Lemma straight_in_l {l n a a0 ll}
-    : build_cycle l n a = Straight a0 ll ->
+    : build_cycle l n a = BCStraight a0 ll ->
       in_under fst a l ->
       (forall x, In x (a0 :: ll) -> in_under fst x l).
   Proof.
@@ -1118,7 +1171,7 @@ Section maps.
   Qed.
 
   Lemma straight_len_l {l n a a0 ll}
-    : build_cycle l n a = Straight a0 ll ->
+    : build_cycle l n a = BCStraight a0 ll ->
       P a ->
       is_P_list2 l ->
       in_under fst a l ->
@@ -1130,44 +1183,44 @@ Section maps.
       auto using (straight_distinct bcH paH pl2H), (straight_in_l bcH).
   Qed.
 
-  Definition hunt_cycle l a := build_cycle l (length l) a.
-
   Lemma hunt_cycle_not_straight {l a}
     : in_under fst a l ->
       P a ->
       is_P_list2 l ->
-      forall a0 ll, hunt_cycle l a <> Straight a0 ll.
+      forall a0 ll, build_cycle l (length l) a <> BCStraight a0 ll.
   Proof.
-    unfold hunt_cycle.
     intros inH paH pl2H a0 ll bcH.
     contradiction (Nat.nle_succ_diag_l (length l)).
     apply (straight_len_l bcH paH pl2H inH).
   Qed.
 
-  Lemma hunt_cycle_cases {l a}
-    : in_under fst a l ->
-      P a ->
-      is_P_list2 l ->
-      forall P : Prop,
-        (forall a', hunt_cycle l a = DeadEnd a' -> P) ->
-        (forall a', hunt_cycle l a = Repeat a' -> P) ->
-        (forall ll, hunt_cycle l a = Cycle a ll -> P) ->
-        P.
-  Proof.
-    unfold hunt_cycle; intros inH paH pl2H PP deH reH ceH.
-    case_eq (build_cycle l (length l) a); auto.
-    - intros a0 ll bcH; rewrite (cycle_head bcH) in bcH; eauto.
-    - intros a0 ll bcH;
-        contradiction (hunt_cycle_not_straight inH paH pl2H a0 ll).
-  Qed.
+  Inductive cycle_result : Type :=
+  | DeadEnd  : A -> cycle_result
+  | Repeat   : A -> cycle_result
+  | Cycle    : list A -> cycle_result.
+
+  Definition hunt_cycle
+             (l : list (A * B)) (a : A)
+             (inH : in_under fst a l)
+             (paH : P a)
+             (pl2H : is_P_list2 l)
+    : cycle_result :=
+    match build_cycle l (length l) a with
+    | BCDeadEnd a' => DeadEnd a'
+    | BCRepeat a' => Repeat a'
+    | BCCycle a' ll => Cycle ll
+    | BCStraight a' ll => Cycle ll (* bogus case *)
+    end.
 
   Definition shorten_cycle l a
+             (inH : in_under fst a l)
+             (paH : P a)
+             (pl2H : is_P_list2 l)
     : list (A * B) :=
-    match hunt_cycle l a with
+    match hunt_cycle l a inH paH pl2H with
     | DeadEnd a' => remove_under decA fst a' l
     | Repeat a' => remove_under decA fst a' l
-    | Cycle a0 ll => trim_cycle l (uncons2 ll a)
-    | Straight a0 ll => (* bogus *) nil
+    | Cycle ll => trim_cycle l (uncons2 ll a)
     end.
 
   Definition extends (l' l : list (A * B)) : Prop :=
@@ -1176,51 +1229,78 @@ Section maps.
   Lemma extends_shorter {l' l}
     : extends l' l -> length l' < length l.
   Proof.
-    unfold extends, extends1, extends2; tauto.
+    destruct 1 as [ ex1 | ex2 ].
+    - destruct ex1 as [ a exH ].
+      unfold is_ext1 in exH; tauto.
+    - destruct ex2 as [ triple exH ].
+      unfold is_ext2 in exH; tauto.
   Qed.
 
   Lemma extends_inj {l' l}
     : extends l' l -> inj_on P (list_map decA i l').
   Proof.
-    unfold extends, extends1, extends2; tauto.
+    destruct 1 as [ ex1 | ex2 ].
+    - destruct ex1 as [ a exH ].
+      unfold is_ext1 in exH; tauto.
+    - destruct ex2 as [ triple exH ].
+      unfold is_ext2 in exH; tauto.
   Qed.
 
-  Lemma hunt_cycle_elim {l a}
+  Lemma hunt_cycle_cases {l a}
         (injH : inj_on P (f l))
         (inH : in_under fst a l)
         (paH : P a)
         (pl2H : is_P_list2 l)
-    : extends (shorten_cycle l a) l.
+        (Q : cycle_result -> Prop)
+        (deH : forall a',
+            build_cycle l (length l) a = BCDeadEnd a' ->
+            Q (DeadEnd a'))
+        (reH : forall a',
+            build_cycle l (length l) a = BCRepeat a' ->
+            Q (Repeat a'))
+        (cyH : forall ll,
+            build_cycle l (length l) a = BCCycle a ll ->
+            Q (Cycle ll))
+    : Q (hunt_cycle l a inH paH pl2H).
   Proof.
-    unfold shorten_cycle.
-    apply (hunt_cycle_cases inH paH pl2H).
-    - intros a' hcH; rewrite hcH.
-      left; eauto using (dead_end_elim injH inH hcH).
-    - intros a' hcH; rewrite hcH.
-      left; eauto using (repeat_elim injH inH hcH).
-    - intros ll hcH; rewrite hcH.
-      right; eauto using (cycle_elim injH hcH paH pl2H inH).
+    unfold hunt_cycle.
+    case_eq (build_cycle l (length l) a); auto.
+    - intros a'' ll bcH; rewrite (cycle_head bcH) in bcH; auto.
+    - intros a'' ll bcH.
+      contradiction (hunt_cycle_not_straight inH paH pl2H a'' ll).
   Qed.
 
-  Lemma plist2_shorten a l
+  Lemma extends_shorten_cycle {l a}
+        (injH : inj_on P (f l))
         (inH : in_under fst a l)
         (paH : P a)
         (pl2H : is_P_list2 l)
-    : is_P_list2 (shorten_cycle l a).
+    : extends (shorten_cycle l a inH paH pl2H) l.
   Proof.
     unfold shorten_cycle.
-    apply (hunt_cycle_cases inH paH pl2H).
-    - intros a' hcH; rewrite hcH.
+    apply (hunt_cycle_cases injH inH paH pl2H).
+    - intros a' bcH; left; exact (dead_end_rec injH inH bcH).
+    - intros a' bcH; left; exact (repeat_rec injH inH bcH).
+    - intros ll bcH; right; exact (cycle_rec injH bcH paH pl2H inH).
+  Qed.
+
+  Lemma plist2_shorten a l
+        (injH : inj_on P (f l))
+        (inH : in_under fst a l)
+        (paH : P a)
+        (pl2H : is_P_list2 l)
+    : is_P_list2 (shorten_cycle l a inH paH pl2H).
+  Proof.
+    unfold shorten_cycle.
+    apply (hunt_cycle_cases injH inH paH pl2H);
       auto using plist2_remove_under.
-    - intros a' hcH; rewrite hcH.
-      auto using plist2_remove_under.
-    - intros ll hcH; rewrite hcH.
-      assert (is_P_list (a :: ll)) as plH;
-        [ exact (cycle_plist hcH paH pl2H) | ].
-      revert plH; rewrite (cycle_structure hcH).
-      destruct (uncons2 ll a) as [ [ a0 a1 ] ll' ].
-      cbn [cons2 uncons2].
-      eauto using plist2_trim_cycle, is_P_list_tail.
+    intros ll cycH.
+    assert (is_P_list (a :: ll)) as plH;
+      [ exact (cycle_plist cycH paH pl2H) | ].
+    revert plH; rewrite (cycle_structure cycH).
+    destruct (uncons2 ll a) as [ [ a0 a1 ] ll' ].
+    cbn [cons2 uncons2].
+    eauto using plist2_trim_cycle, is_P_list_tail.
   Qed.
 
   Lemma extends_wf : well_founded extends.
@@ -1266,7 +1346,7 @@ Section maps.
     assert (in_under fst a ((a, b) :: l)) as inH;
       [ exact (in_under_fst_cons (a, b) l) | ].
     assert (P a) as paH; [ exact (pl2H a inH) | ].
-    pose proof (hunt_cycle_elim injH inH paH pl2H) as exH.
+    pose proof (extends_shorten_cycle injH inH paH pl2H) as exH.
     eauto using plist2_shorten, extends_inj.
   Qed.
 
@@ -1288,8 +1368,59 @@ Section maps.
     assert (in_under fst a ((a, b) :: l)) as inH;
       [ exact (in_under_fst_cons (a, b) l) | ].
     assert (P a) as paH; [ exact (pl2H a inH) | ].
-    pose proof (hunt_cycle_elim injH inH paH pl2H) as exH.
+    pose proof (extends_shorten_cycle injH inH paH pl2H) as exH.
     eauto using plist2_shorten, extends_inj.
   Defined.
+
+  Definition extension := (A + A * A * A) % type.
+
+  Definition get_extension
+             {l a}
+             (injH : inj_on P (f l))
+             (inH : in_under fst a l)
+             (paH : P a)
+             (pl2H : is_P_list2 l)
+    : extension :=
+    match hunt_cycle l a inH paH pl2H with
+    | DeadEnd a' => inl a'
+    | Repeat a' => inl a'
+    | Cycle ll => inr (fst (uncons2 ll a),
+                      ne_tail (snd (fst (uncons2 ll a)))
+                              (snd (uncons2 ll a)))
+    end.
+
+  Lemma is_ext1_get_extension
+        {l a a'}
+        (injH : inj_on P (f l))
+        (inH : in_under fst a l)
+        (paH : P a)
+        (pl2H : is_P_list2 l)
+    : get_extension injH inH paH pl2H = inl a' ->
+      is_ext1 (shorten_cycle l a inH paH pl2H) l a'.
+  Proof.
+    unfold shorten_cycle, get_extension.
+    apply (hunt_cycle_cases injH inH paH pl2H).
+    - intros a'' bcH; injection 1 as ->.
+      eauto using dead_end_elim.
+    - intros a'' bcH; injection 1 as ->.
+      eauto using repeat_elim.
+    - intros ll bcH; inversion 1.
+  Qed.
+
+  Lemma is_ext2_get_extension
+        {l a aaa}
+        (injH : inj_on P (f l))
+        (inH : in_under fst a l)
+        (paH : P a)
+        (pl2H : is_P_list2 l)
+    : get_extension injH inH paH pl2H = inr aaa ->
+      is_ext2 (shorten_cycle l a inH paH pl2H) l aaa.
+  Proof.
+    unfold shorten_cycle, get_extension.
+    apply (hunt_cycle_cases injH inH paH pl2H);
+      try solve [ inversion 2 ].
+    intros ll bcH; injection 1 as <-.
+    exact (cycle_elim injH bcH paH pl2H inH).
+  Qed.
 
 End maps.
